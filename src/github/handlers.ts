@@ -14,7 +14,9 @@ import { installationOctokit } from "./octokit.ts";
 
 const CONFIGURE_BRANCH = "aidep/configure";
 const CONFIG_PATH = ".github/aidep.json";
+// onboarding PR body uses aidep-rebase; migration PR bodies use aidep-rerun
 const REBASE_CHECKED = "- [x] <!-- aidep-rebase -->";
+const RERUN_CHECKED = "- [x] <!-- aidep-rerun -->";
 
 const REGISTERED = Symbol.for("aidep.handlersRegistered");
 
@@ -137,10 +139,18 @@ export function registerHandlers(app: App): void {
 
   app.webhooks.on("pull_request.edited", async ({ payload }) => {
     const head = payload.pull_request.head.ref;
-    if (!head.startsWith("aidep/") || head === CONFIGURE_BRANCH) return;
-    const nowChecked = (payload.pull_request.body ?? "").includes(REBASE_CHECKED);
-    const wasChecked = (payload.changes.body?.from ?? "").includes(REBASE_CHECKED);
-    if (nowChecked && !wasChecked) {
+    if (!head.startsWith("aidep/")) return;
+    const flipped = (marker: string) =>
+      (payload.pull_request.body ?? "").includes(marker) &&
+      !(payload.changes.body?.from ?? "").includes(marker);
+    if (head === CONFIGURE_BRANCH) {
+      // onboarding PR: refresh the scan + body in place
+      if (flipped(REBASE_CHECKED)) {
+        await enqueue("onboard", { repoId: payload.repository.id, refresh: true });
+      }
+      return;
+    }
+    if (flipped(RERUN_CHECKED)) {
       await enqueue("rerun_pr", { repoId: payload.repository.id, prNumber: payload.number });
     }
   });

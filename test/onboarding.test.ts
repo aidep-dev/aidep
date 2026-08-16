@@ -52,11 +52,11 @@ describe("buildOnboardingPr", () => {
   it("embeds the exposure report without the h1/repo header", () => {
     expect(content.body).not.toContain("# aidep scan report");
     expect(content.body).not.toContain("Repo:");
-    expect(content.body).toContain("**retired 2025-10-28 — calls fail today**");
+    expect(content.body).toContain("**retired 2025-10-28; calls fail today**");
     expect(content.body).toContain("dies 2026-08-26 (10 days)");
     expect(content.body).toContain("dies 2026-10-23 (68 days) (earliest possible date)");
     expect(content.body).toContain(
-      ".github/workflows/nightly.yml: workflow file — aidep will not edit this path; migrate manually",
+      ".github/workflows/nightly.yml: workflow file; aidep will not edit this path; migrate manually",
     );
     expect(content.body).toContain("Files scanned: 3, skipped: 0");
   });

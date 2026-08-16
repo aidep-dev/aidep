@@ -34,9 +34,10 @@ describe("fixture-repo", async () => {
       "src/assistant.js": [
         "6:openai.beta.assistants",
         "7:gpt-4-turbo",
-        "15:openai.beta.threads",
-        "19:createAndPoll",
-        "19:openai.beta.threads",
+        "18:openai.beta.threads",
+        "22:createAndPoll",
+        "22:openai.beta.threads",
+        "25:openai.beta.threads",
       ],
       "src/assistant_flow.py": [
         "9:ASSISTANT_ID env var",

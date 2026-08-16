@@ -16,17 +16,17 @@ function isWorkflowPath(path: string): boolean {
  * punctuation so a path can't break the table (|) or inject links/HTML
  * ([, ], <, >, `). GFM renders `\<` etc. as the literal character.
  */
-function mdEscape(s: string): string {
+export function mdEscape(s: string): string {
   return s.replace(/[\\|[\]<>`]/g, "\\$&");
 }
 
 function statusLine(f: Finding, now: string): string {
   if (f.status === "retired") {
     return f.dies === null
-      ? "**retired — calls fail today**"
-      : `**retired ${f.dies} — calls fail today**`;
+      ? "**retired; calls fail today**"
+      : `**retired ${f.dies}; calls fail today**`;
   }
-  if (f.dies === null) return "deprecated — no shutdown date announced yet";
+  if (f.dies === null) return "deprecated; no shutdown date announced yet";
   const days = Math.round((Date.parse(f.dies) - Date.parse(now)) / DAY_MS);
   const earliest = f.diesIsEarliestPossible ? " (earliest possible date)" : "";
   return `dies ${f.dies} (${days} days)${earliest}`;
@@ -83,7 +83,7 @@ export function renderMarkdownReport(
     out.push("");
     const workflowPaths = [...new Set(section.filter((f) => isWorkflowPath(f.path)).map((f) => f.path))];
     for (const p of workflowPaths) {
-      out.push(`${mdEscape(p)}: workflow file — aidep will not edit this path; migrate manually`, "");
+      out.push(`${mdEscape(p)}: workflow file; aidep will not edit this path; migrate manually`, "");
     }
   }
 

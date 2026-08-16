@@ -103,7 +103,7 @@ export async function openOnboardingPr(
       sha: baseSha,
     });
   } catch (e) {
-    // 422: branch already exists (a previous run got this far) — reuse it
+    // 422: branch already exists (a previous run got this far); reuse it
     if (statusOf(e) !== 422) throw e;
   }
 
@@ -138,7 +138,7 @@ export async function openOnboardingPr(
     });
     return (pr.data as { number: number }).number;
   } catch (e) {
-    // 422 "A pull request already exists" — find and return it
+    // 422 "A pull request already exists"; find and return it
     if (statusOf(e) !== 422) throw e;
     const list = await octokit.request("GET /repos/{owner}/{repo}/pulls", {
       ...base,

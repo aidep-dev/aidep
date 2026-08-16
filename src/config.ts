@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-/** .github/aidep.json — deliberately tiny. */
+/** .github/aidep.json; deliberately tiny. */
 export const AidepConfigSchema = z
   .object({
     schedule: z.enum(["daily", "weekly"]).default("daily"),

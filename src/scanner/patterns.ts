@@ -26,8 +26,8 @@ function escapeRegExp(s: string): string {
 
 // The char before/after a registry id must not look like part of a longer id,
 // so "gpt-4-turbo" never fires inside "gpt-4-turbo-preview".
-const ID_BOUNDARY_LEFT = "(?<![A-Za-z0-9._-])";
-const ID_BOUNDARY_RIGHT = "(?![A-Za-z0-9._-])";
+export const ID_BOUNDARY_LEFT = "(?<![A-Za-z0-9._-])";
+export const ID_BOUNDARY_RIGHT = "(?![A-Za-z0-9._-])";
 
 const ASSISTANTS_ROW_ID = "openai:endpoint:assistants-api";
 

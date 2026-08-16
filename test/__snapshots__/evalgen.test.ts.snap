@@ -1,0 +1,402 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`generateEvalPack > matches snapshot 1`] = `
+[
+  {
+    "content": "[
+  {
+    "description": "summarize ticket",
+    "vars": {
+      "text": "printer exploded"
+    },
+    "__checks": {
+      "contains": "ticket"
+    }
+  },
+  {
+    "description": "rank items [1]",
+    "vars": {
+      "items": "a\\nb"
+    },
+    "__checks": {
+      "json": true,
+      "oneOf": [
+        "a",
+        "b"
+      ]
+    }
+  },
+  {
+    "description": "rank items [2]",
+    "vars": {
+      "items": "c\\nd"
+    },
+    "__checks": {
+      "json": true,
+      "oneOf": [
+        "a",
+        "b"
+      ]
+    }
+  }
+]
+",
+    "path": "evals/tests.json",
+  },
+  {
+    "content": "[
+  "Summarize this ticket: {{text}}",
+  "Rank these:\\n{{items}}"
+]
+",
+    "path": "evals/prompts.json",
+  },
+  {
+    "content": "{
+  "description": "aidep baseline: gpt-4-turbo",
+  "prompts": [
+    "file://prompts.json"
+  ],
+  "providers": [
+    "openai:gpt-4-turbo"
+  ],
+  "tests": "file://tests.json"
+}
+",
+    "path": "evals/promptfooconfig.baseline.json",
+  },
+  {
+    "content": "{
+  "description": "aidep eval: gpt-4-turbo -> gpt-5.6-sol",
+  "prompts": [
+    "file://prompts.json"
+  ],
+  "providers": [
+    "openai:gpt-5.6-sol"
+  ],
+  "tests": "file://tests.baseline.json",
+  "defaultTest": {
+    "options": {
+      "provider": "anthropic:messages:claude-sonnet-4-6"
+    }
+  }
+}
+",
+    "path": "evals/promptfooconfig.json",
+  },
+  {
+    "content": "// aidep: builds evals/tests.baseline.json from the baseline promptfoo run.
+// Reads evals/baseline.json (promptfoo --output json) + evals/tests.json,
+// attaches asserts to every test: deterministic checks first, then
+// similar/factuality against the baseline output. No dependencies.
+import { readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = dirname(fileURLToPath(import.meta.url));
+
+const baseline = JSON.parse(readFileSync(join(here, "baseline.json"), "utf8"));
+const tests = JSON.parse(readFileSync(join(here, "tests.json"), "utf8"));
+
+function asText(output) {
+  if (typeof output === "string") return output;
+  if (output == null) return null;
+  return JSON.stringify(output);
+}
+
+// promptfoo 0.12x --output json: { results: { results: [...] } } where each
+// row has { testIdx, testCase, vars, response: { output } }. Older outputs
+// carry { results: { table: { body: [...] } } } instead; read both.
+function baselineRows(data) {
+  const rows = data?.results?.results;
+  if (Array.isArray(rows)) {
+    return rows.map((r, i) => ({
+      testIdx: typeof r?.testIdx === "number" ? r.testIdx : i,
+      description: r?.testCase?.description ?? r?.description ?? null,
+      output: asText(r?.response?.output),
+    }));
+  }
+  const body = data?.results?.table?.body;
+  if (Array.isArray(body)) {
+    return body.map((row, i) => ({
+      testIdx: i,
+      description: row?.test?.description ?? null,
+      output: asText(row?.outputs?.[0]?.text ?? row?.outputs?.[0]),
+    }));
+  }
+  return [];
+}
+
+const rows = baselineRows(baseline);
+
+function baselineOutputFor(test, index) {
+  const byIdx = rows.find((r) => r.testIdx === index);
+  if (byIdx && byIdx.output != null) return byIdx.output;
+  const byDesc = rows.find((r) => r.description != null && r.description === test.description);
+  if (byDesc && byDesc.output != null) return byDesc.output;
+  return rows[index]?.output ?? null;
+}
+
+const withAsserts = tests.map((test, index) => {
+  const checks = test.__checks ?? {};
+  const asserts = [];
+  if (checks.json) asserts.push({ type: "is-json" });
+  if (Array.isArray(checks.oneOf) && checks.oneOf.length > 0) {
+    // JSON.stringify keeps the list a safe JS array literal inside the expression.
+    asserts.push({ type: "javascript", value: \`\${JSON.stringify(checks.oneOf)}.includes(output.trim())\` });
+  }
+  if (typeof checks.contains === "string" && checks.contains.length > 0) {
+    asserts.push({ type: "contains", value: checks.contains });
+  }
+  const baselineOutput = baselineOutputFor(test, index);
+  if (baselineOutput != null) {
+    asserts.push({ type: "similar", value: baselineOutput, threshold: 0.8 });
+    asserts.push({ type: "factuality", value: baselineOutput });
+  }
+  return { description: test.description, vars: test.vars, assert: asserts };
+});
+
+writeFileSync(join(here, "tests.baseline.json"), JSON.stringify(withAsserts, null, 2) + "\\n");
+console.log(\`build-asserts: wrote \${withAsserts.length} tests to tests.baseline.json\`);
+",
+    "path": "evals/build-asserts.mjs",
+  },
+  {
+    "content": "// aidep: turns the assert run (evals/run.json, promptfoo --output json) into
+// evals/results.json, commits it to the current branch, and posts/updates a
+// PR comment. The verdict is a signal, not a gate: this script always exits 0.
+// --dry-run: print the results.json object to stdout and skip file writes,
+// git, and network; used by aidep's own tests and handy for local debugging.
+import { execFileSync } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const dryRun = process.argv.includes("--dry-run");
+const MARKER = "<!-- aidep-eval-report -->";
+
+function runRows(data) {
+  const rows = data?.results?.results;
+  if (Array.isArray(rows)) return rows;
+  const body = data?.results?.table?.body;
+  if (Array.isArray(body)) {
+    return body.map((row) => ({
+      testCase: row?.test,
+      error: row?.outputs?.[0]?.error ?? null,
+      gradingResult: row?.outputs?.[0]?.gradingResult ?? null,
+    }));
+  }
+  return [];
+}
+
+// held: every assert passed. drifted: any assert failed (similar/factuality
+// failing is the drift signal; a deterministic check failing is drift too).
+// inconclusive: the row errored or has no grading result.
+function verdictFor(row) {
+  if (!row || row.error) {
+    return { verdict: "inconclusive", details: row?.error ? String(row.error).slice(0, 300) : "missing result" };
+  }
+  const comps = row.gradingResult?.componentResults;
+  if (!Array.isArray(comps) || comps.length === 0) {
+    if (row.gradingResult?.pass === true || row.success === true) return { verdict: "held", details: "" };
+    return { verdict: "inconclusive", details: "no assert results" };
+  }
+  const failed = comps.filter((c) => c && c.pass === false);
+  if (failed.length === 0) return { verdict: "held", details: "" };
+  const types = failed.map((c) => c?.assertion?.type ?? "unknown");
+  return { verdict: "drifted", details: \`failed: \${types.join(", ")}\` };
+}
+
+function buildResults(run) {
+  const rows = runRows(run);
+  const cases = rows.map((row, i) => {
+    const { verdict, details } = verdictFor(row);
+    return {
+      description: row?.testCase?.description ?? row?.description ?? \`case \${i + 1}\`,
+      verdict,
+      details,
+    };
+  });
+  const summary = {
+    held: cases.filter((c) => c.verdict === "held").length,
+    drifted: cases.filter((c) => c.verdict === "drifted").length,
+    inconclusive: cases.filter((c) => c.verdict === "inconclusive").length,
+    total: cases.length,
+  };
+  const judge = run?.config?.defaultTest?.options?.provider ?? "unknown";
+  return { judge, summary, cases };
+}
+
+function prNumber() {
+  const m = /^refs\\/pull\\/(\\d+)\\//.exec(process.env.GITHUB_REF ?? "");
+  if (m) return Number(m[1]);
+  const eventPath = process.env.GITHUB_EVENT_PATH;
+  if (eventPath) {
+    try {
+      const event = JSON.parse(readFileSync(eventPath, "utf8"));
+      const n = event?.pull_request?.number ?? event?.number;
+      if (typeof n === "number") return n;
+    } catch {
+      // fall through
+    }
+  }
+  return null;
+}
+
+function commentBody(results) {
+  const lines = results.cases.map(
+    (c) => \`- \${c.verdict}: \${c.description}\${c.details ? \` (\${c.details})\` : ""}\`,
+  );
+  return [
+    MARKER,
+    \`aidep eval: behavior held on \${results.summary.held}/\${results.summary.total} prompts\` +
+      \` (judge: \${results.judge}).\`,
+    "",
+    ...lines,
+    "",
+  ].join("\\n");
+}
+
+async function upsertComment(results) {
+  const token = process.env.GITHUB_TOKEN;
+  const repo = process.env.GITHUB_REPOSITORY;
+  const pr = prNumber();
+  if (!token || !repo || pr == null) {
+    console.error("report: missing GITHUB_TOKEN / GITHUB_REPOSITORY / PR number, skipping comment");
+    return;
+  }
+  const headers = {
+    authorization: \`Bearer \${token}\`,
+    accept: "application/vnd.github+json",
+    "content-type": "application/json",
+  };
+  const body = JSON.stringify({ body: commentBody(results) });
+  const listRes = await fetch(
+    \`https://api.github.com/repos/\${repo}/issues/\${pr}/comments?per_page=100\`,
+    { headers },
+  );
+  const existing = listRes.ok
+    ? (await listRes.json()).find((c) => typeof c?.body === "string" && c.body.includes(MARKER))
+    : undefined;
+  if (existing) {
+    await fetch(\`https://api.github.com/repos/\${repo}/issues/comments/\${existing.id}\`, {
+      method: "PATCH",
+      headers,
+      body,
+    });
+  } else {
+    await fetch(\`https://api.github.com/repos/\${repo}/issues/\${pr}/comments\`, {
+      method: "POST",
+      headers,
+      body,
+    });
+  }
+}
+
+function commitResults(resultsPath) {
+  const git = (...args) => execFileSync("git", args, { stdio: "inherit" });
+  git("config", "user.name", "github-actions[bot]");
+  git("config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com");
+  git("add", resultsPath);
+  git("commit", "-m", "aidep: record eval results");
+  git("push", "origin", "HEAD");
+}
+
+try {
+  const run = JSON.parse(readFileSync(join(here, "run.json"), "utf8"));
+  const results = buildResults(run);
+  if (dryRun) {
+    console.log(JSON.stringify(results, null, 2));
+  } else {
+    const resultsPath = join(here, "results.json");
+    writeFileSync(resultsPath, JSON.stringify(results, null, 2) + "\\n");
+    try {
+      commitResults(resultsPath);
+    } catch (e) {
+      console.error("report: git commit/push failed:", e instanceof Error ? e.message : e);
+    }
+    try {
+      await upsertComment(results);
+    } catch (e) {
+      console.error("report: PR comment failed:", e instanceof Error ? e.message : e);
+    }
+    console.log(\`report: behavior held on \${results.summary.held}/\${results.summary.total} prompts\`);
+  }
+} catch (e) {
+  console.error("report: failed:", e instanceof Error ? e.message : e);
+}
+process.exit(0);
+",
+    "path": "evals/report.mjs",
+  },
+  {
+    "content": "# aidep: runs the eval pack shipped in this PR against your own API keys.
+# Baseline (old model) runs once and is cached; the new model then runs
+# against asserts derived from the baseline. The report never fails the job.
+name: aidep-eval
+
+on:
+  # pull_request \`branches\` filters the BASE branch, and aidep PRs target
+  # your default branch, so scope by changed paths instead: any PR touching
+  # evals/ (aidep migration PRs always do) triggers the run.
+  pull_request:
+    paths: ["evals/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - uses: actions/cache@v4
+        with:
+          path: evals/.cache
+          key: aidep-eval-\${{ hashFiles('evals/**') }}
+
+      - name: Baseline eval (old model, skipped when cached)
+        run: |
+          if [ -f evals/.cache/baseline.json ]; then
+            echo "baseline restored from cache, skipping baseline run"
+            cp evals/.cache/baseline.json evals/baseline.json
+          else
+            npx -y promptfoo@0.122.0 eval -c evals/promptfooconfig.baseline.json -o evals/baseline.json --no-progress-bar
+            mkdir -p evals/.cache
+            cp evals/baseline.json evals/.cache/baseline.json
+          fi
+        env:
+          OPENAI_API_KEY: \${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: \${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_API_KEY: \${{ secrets.GOOGLE_API_KEY }}
+
+      - name: Build asserts from baseline
+        run: node evals/build-asserts.mjs
+
+      - name: Eval new model against baseline
+        run: npx -y promptfoo@0.122.0 eval -c evals/promptfooconfig.json -o evals/run.json --no-progress-bar
+        env:
+          PROMPTFOO_FAILED_TEST_EXIT_CODE: "0"
+          OPENAI_API_KEY: \${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: \${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_API_KEY: \${{ secrets.GOOGLE_API_KEY }}
+
+      - name: Report
+        run: node evals/report.mjs
+        env:
+          GITHUB_TOKEN: \${{ github.token }}
+",
+    "path": "evals/workflows/aidep-eval.yml",
+  },
+]
+`;

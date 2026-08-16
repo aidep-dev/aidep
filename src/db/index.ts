@@ -132,9 +132,12 @@ export async function recordFindings(
         dies_is_earliest = ${f.diesIsEarliestPossible},
         status = case when findings.status = 'resolved' then 'open' else findings.status end`;
   }
+  // pr_open findings resolve too once the fix lands (merged PR → rescan no
+  // longer sees them); otherwise they would stay pr_open forever
   await sql`
     update findings set status = 'resolved'
-    where repo_id = ${repoId} and status = 'open' and scan_id is distinct from ${scanId}`;
+    where repo_id = ${repoId} and status in ('open', 'pr_open')
+      and scan_id is distinct from ${scanId}`;
 }
 
 export async function listOpenFindings(repoId: number): Promise<FindingRow[]> {
@@ -145,9 +148,12 @@ export async function listOpenFindings(repoId: number): Promise<FindingRow[]> {
 }
 
 export async function markFindingsPrOpen(repoId: number, registryId: string, prId: number): Promise<void> {
+  // workflow-file findings stay open: the PR deliberately never edits
+  // .github/workflows, so those exposures are not addressed by it
   await sql`
     update findings set status = 'pr_open', pr_id = ${prId}
-    where repo_id = ${repoId} and registry_id = ${registryId} and status = 'open'`;
+    where repo_id = ${repoId} and registry_id = ${registryId} and status = 'open'
+      and path not like '.github/workflows/%'`;
 }
 
 // ---- prs ----

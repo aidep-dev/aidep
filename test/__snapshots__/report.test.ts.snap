@@ -9,7 +9,7 @@ Scan date: 2026-08-16
 
 ## claude-3-5-sonnet-20241022 (anthropic)
 
-**retired 2025-10-28 — calls fail today**
+**retired 2025-10-28; calls fail today**
 
 Replacement: claude-sonnet-4-6
 
@@ -19,13 +19,13 @@ Replacement: claude-sonnet-4-6
 
 ## gemini-2.0-flash-001 (google)
 
-**retired 2026-06-01 — calls fail today**
+**retired 2026-06-01; calls fail today**
 
 | file | line | matched |
 | --- | --- | --- |
 | .github/workflows/nightly.yml | 16 | gemini-2.0-flash-001 |
 
-.github/workflows/nightly.yml: workflow file — aidep will not edit this path; migrate manually
+.github/workflows/nightly.yml: workflow file; aidep will not edit this path; migrate manually
 
 ## assistants-api (openai)
 
@@ -40,9 +40,10 @@ Migration guide: https://platform.openai.com/docs/assistants/migration
 | .env.example | 2 | asst_ id literal |
 | .env.example | 2 | ASSISTANT_ID env var |
 | src/assistant.js | 6 | openai.beta.assistants |
-| src/assistant.js | 15 | openai.beta.threads |
-| src/assistant.js | 19 | openai.beta.threads |
-| src/assistant.js | 19 | createAndPoll |
+| src/assistant.js | 18 | openai.beta.threads |
+| src/assistant.js | 22 | openai.beta.threads |
+| src/assistant.js | 22 | createAndPoll |
+| src/assistant.js | 25 | openai.beta.threads |
 | src/assistant_flow.py | 9 | ASSISTANT_ID env var |
 | src/assistant_flow.py | 13 | client.beta.threads |
 | src/assistant_flow.py | 14 | client.beta.threads |
@@ -73,7 +74,7 @@ Replacement: gpt-5.6-sol
 
 ## temperature-top-p-top-k (anthropic)
 
-deprecated — no shutdown date announced yet
+deprecated; no shutdown date announced yet
 
 | file | line | matched |
 | --- | --- | --- |

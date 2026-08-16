@@ -37,7 +37,7 @@ describe("renderMarkdownReport", async () => {
 
   it("flags workflow files as manual-migration paths", () => {
     expect(report).toContain(
-      ".github/workflows/nightly.yml: workflow file — aidep will not edit this path; migrate manually",
+      ".github/workflows/nightly.yml: workflow file; aidep will not edit this path; migrate manually",
     );
   });
 

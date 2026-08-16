@@ -11,7 +11,7 @@ Scan date: 2026-08-16
 
 ## claude-3-5-sonnet-20241022 (anthropic)
 
-**retired 2025-10-28 — calls fail today**
+**retired 2025-10-28; calls fail today**
 
 Replacement: claude-sonnet-4-6
 
@@ -21,13 +21,13 @@ Replacement: claude-sonnet-4-6
 
 ## gemini-2.0-flash-001 (google)
 
-**retired 2026-06-01 — calls fail today**
+**retired 2026-06-01; calls fail today**
 
 | file | line | matched |
 | --- | --- | --- |
 | .github/workflows/nightly.yml | 1 | gemini-2.0-flash-001 |
 
-.github/workflows/nightly.yml: workflow file — aidep will not edit this path; migrate manually
+.github/workflows/nightly.yml: workflow file; aidep will not edit this path; migrate manually
 
 ## assistants-api (openai)
 
@@ -70,5 +70,5 @@ This PR adds \`.github/aidep.json\`:
 Questions? https://aidep.test/docs
 
 - [ ] <!-- aidep-rebase -->If you want aidep to re-run the scan and refresh this PR, check this box.
-<!-- aidep:body-hash:58d842804f07e56a1d8043b932854c5ca256f66e72e72cd099c5c42b243ee510 -->"
+<!-- aidep:body-hash:e4a6b2b89a882fede15f3c59851e2c75bd9166acec491a49002198eed92c488f -->"
 `;

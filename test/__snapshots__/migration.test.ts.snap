@@ -1,0 +1,33 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`create_migration_pr > opens the assistants migration PR end to end 1`] = `
+"This PR moves 2 files off the OpenAI Assistants API, which shuts down 2026-08-26, onto the Responses API (synchronous; no run polling; the text is on response.output_text).
+
+## Eval
+
+**Eval: pending.** The evals/ pack in this PR runs your prompts on openai:chat:gpt-4-turbo vs openai:responses:gpt-4-turbo in your CI. Review evals/tests.json (these cases were extracted from your code), then move evals/workflows/aidep-eval.yml into .github/workflows/ to enable the run; moving the file is the opt-in.
+
+Judge: anthropic:messages:claude-sonnet-4-6 (a different model family than the one under test). Set its API key in repo secrets, or edit defaultTest.options.provider in evals/promptfooconfig.json to a family you hold keys for.
+
+## Changes
+
+| file | change | dies |
+| --- | --- | --- |
+| src/assistant_flow.py | renamed beta.threads.create to conversations.create in src/assistant_flow.py | 2026-08-26 |
+| src/assistant_flow.py | rewrote the messages.create/runs/poll/messages.list dance in src/assistant_flow.py to a single responses.create | 2026-08-26 |
+| src/assistant.js | rewrote the messages.create/runs/poll/messages.list dance in src/assistant.js to a single responses.create | 2026-08-26 |
+| src/assistant.js | inlined the assistants.create config (model/instructions/tools) into responses.create in src/assistant.js | 2026-08-26 |
+| src/assistant.js | removed the dead createReviewAssistant() helper in src/assistant.js | 2026-08-26 |
+
+## Manual checklist
+
+- [ ] createReviewAssistant() in src/assistant.js was removed; its Assistant config is now inlined in the responses.create call, update any callers.
+- [ ] The Assistant's config (model/instructions/tools) is not in this code, so rewritten responses.create calls have no model yet and will fail until it is inlined. The Assistants API dies 2026-08-26 and the config must move into the code; aidep inlines configs and never points calls at hosted prompt objects (prompt creation is dashboard-only and /v1/prompts itself dies 2026-11-30). Run aidep/fetch-and-inline.mjs (generated in this PR) with OPENAI_API_KEY and the assistant id, then merge the printed model/instructions/tools into the new responses.create call(s).
+- [ ] Raw REST calls to /v1/assistants or /v1/threads (including the OpenAI-Beta: assistants header) stop working at shutdown; rewrite them against /v1/responses and /v1/conversations manually.
+
+Migration guide: https://platform.openai.com/docs/assistants/migration
+Provider announcement: https://platform.openai.com/docs/deprecations
+
+- [ ] <!-- aidep-rerun -->Check this box to have aidep re-run the migration on the current default branch.
+<!-- aidep:body-hash:a17ac35df556ab3e1b629b997df196ffd5acdab3c2acef250ad32467a6ac1fc1 -->"
+`;

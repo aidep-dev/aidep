@@ -229,20 +229,30 @@ describe("pull_request.edited (rebase checkbox)", () => {
       pull_request: { number: 12, merged: false, body, head: { ref: headRef } },
     });
 
-  it("enqueues rerun_pr when the checkbox flips to checked", async () => {
+  it("enqueues rerun_pr when the migration checkbox flips to checked", async () => {
     await seedRepo(REPO_A, { onboarded: true });
-    await edited("aidep/gpt-4-turbo", "- [ ] <!-- aidep-rebase -->", "- [x] <!-- aidep-rebase -->");
+    await edited("aidep/gpt-4-turbo", "- [ ] <!-- aidep-rerun -->", "- [x] <!-- aidep-rerun -->");
     const jobs = await queuedJobs("rerun_pr", REPO_A);
     expect(jobs).toHaveLength(1);
     expect(jobs[0].payload).toMatchObject({ prNumber: 12 });
   });
 
-  it("ignores the configure branch and edits that do not flip the box", async () => {
+  it("configure-branch rebase checkbox enqueues an onboarding refresh", async () => {
     await seedRepo(REPO_A, { onboarded: true });
     await edited("aidep/configure", "- [ ] <!-- aidep-rebase -->", "- [x] <!-- aidep-rebase -->");
-    await edited("aidep/gpt-4-turbo", "- [x] <!-- aidep-rebase -->", "- [x] <!-- aidep-rebase -->");
-    await edited("aidep/gpt-4-turbo", "- [x] <!-- aidep-rebase -->", "- [ ] <!-- aidep-rebase -->");
+    const jobs = await queuedJobs("onboard", REPO_A);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0].payload).toMatchObject({ refresh: true });
     expect(await queuedJobs("rerun_pr", REPO_A)).toHaveLength(0);
+  });
+
+  it("ignores edits that do not flip the box", async () => {
+    await seedRepo(REPO_A, { onboarded: true });
+    await edited("aidep/gpt-4-turbo", "- [x] <!-- aidep-rerun -->", "- [x] <!-- aidep-rerun -->");
+    await edited("aidep/gpt-4-turbo", "- [x] <!-- aidep-rerun -->", "- [ ] <!-- aidep-rerun -->");
+    await edited("aidep/configure", "- [x] <!-- aidep-rebase -->", "- [x] <!-- aidep-rebase -->");
+    expect(await queuedJobs("rerun_pr", REPO_A)).toHaveLength(0);
+    expect(await queuedJobs("onboard", REPO_A)).toHaveLength(0);
   });
 });
 

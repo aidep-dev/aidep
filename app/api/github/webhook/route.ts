@@ -5,7 +5,7 @@ import { drain } from "../../../../src/jobs.ts";
 import { runJob } from "../../../../src/pipeline.ts";
 
 /** Schedule the queue drain post-response. Outside a Next request scope
- * (plain vitest) after() throws; there we skip the drain entirely — a
+ * (plain vitest) after() throws; there we skip the drain entirely; a
  * fallback drain in tests would claim other test files' queued jobs. The
  * cron drain covers anything a missed kick leaves behind. */
 function kick(): void {

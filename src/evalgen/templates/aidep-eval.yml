@@ -1,0 +1,64 @@
+# aidep: runs the eval pack shipped in this PR against your own API keys.
+# Baseline (old model) runs once and is cached; the new model then runs
+# against asserts derived from the baseline. The report never fails the job.
+name: aidep-eval
+
+on:
+  # pull_request `branches` filters the BASE branch, and aidep PRs target
+  # your default branch, so scope by changed paths instead: any PR touching
+  # evals/ (aidep migration PRs always do) triggers the run.
+  pull_request:
+    paths: ["evals/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - uses: actions/cache@v4
+        with:
+          path: evals/.cache
+          key: aidep-eval-${{ hashFiles('evals/**') }}
+
+      - name: Baseline eval (old model, skipped when cached)
+        run: |
+          if [ -f evals/.cache/baseline.json ]; then
+            echo "baseline restored from cache, skipping baseline run"
+            cp evals/.cache/baseline.json evals/baseline.json
+          else
+            npx -y promptfoo@0.122.0 eval -c evals/promptfooconfig.baseline.json -o evals/baseline.json --no-progress-bar
+            mkdir -p evals/.cache
+            cp evals/baseline.json evals/.cache/baseline.json
+          fi
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+
+      - name: Build asserts from baseline
+        run: node evals/build-asserts.mjs
+
+      - name: Eval new model against baseline
+        run: npx -y promptfoo@0.122.0 eval -c evals/promptfooconfig.json -o evals/run.json --no-progress-bar
+        env:
+          PROMPTFOO_FAILED_TEST_EXIT_CODE: "0"
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+
+      - name: Report
+        run: node evals/report.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
