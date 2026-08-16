@@ -28,13 +28,13 @@ function accountLogin(account: unknown): string {
 
 async function addRepos(
   installationId: number,
-  repos: Array<{ id: number; full_name: string }>,
+  repos: Array<{ id: number; full_name: string; private?: boolean }>,
 ): Promise<void> {
   for (const r of repos) {
     const [owner, name] = r.full_name.split("/");
     // The installation payload's repositories[] lacks default_branch; store
     // "main" and let the scan job correct it via GET /repos/{owner}/{repo}.
-    await upsertRepo({ id: r.id, installationId, owner, name, defaultBranch: "main" });
+    await upsertRepo({ id: r.id, installationId, owner, name, defaultBranch: "main", private: r.private });
     await enqueue("onboard", { installationId, repoId: r.id });
   }
 }

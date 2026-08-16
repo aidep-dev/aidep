@@ -112,16 +112,21 @@ export async function scanRepo(
     owner: repo.owner,
     repo: repo.name,
   });
-  const defaultBranch = (meta.data as { default_branch: string }).default_branch;
-  if (defaultBranch !== repo.default_branch) {
+  const { default_branch: defaultBranch, private: isPrivate } = meta.data as {
+    default_branch: string;
+    private?: boolean;
+  };
+  if (defaultBranch !== repo.default_branch || (isPrivate ?? false) !== repo.private) {
     await upsertRepo({
       id: repoId,
       installationId: repo.installation_id,
       owner: repo.owner,
       name: repo.name,
       defaultBranch,
+      private: isPrivate,
     });
     repo.default_branch = defaultBranch;
+    repo.private = isPrivate ?? false;
   }
 
   let config = repo.config ?? DEFAULT_CONFIG;

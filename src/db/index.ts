@@ -32,6 +32,7 @@ export interface RepoRow {
   owner: string;
   name: string;
   default_branch: string;
+  private: boolean;
   config: AidepConfig | null;
   onboarding_pr_number: number | null;
   onboarded_at: string | null;
@@ -43,13 +44,15 @@ export async function upsertRepo(r: {
   owner: string;
   name: string;
   defaultBranch: string;
+  private?: boolean;
 }): Promise<void> {
+  const isPrivate = r.private ?? false;
   await sql`
-    insert into repos (id, installation_id, owner, name, default_branch)
-    values (${r.id}, ${r.installationId}, ${r.owner}, ${r.name}, ${r.defaultBranch})
+    insert into repos (id, installation_id, owner, name, default_branch, private)
+    values (${r.id}, ${r.installationId}, ${r.owner}, ${r.name}, ${r.defaultBranch}, ${isPrivate})
     on conflict (id) do update set
       installation_id = ${r.installationId}, owner = ${r.owner},
-      name = ${r.name}, default_branch = ${r.defaultBranch}`;
+      name = ${r.name}, default_branch = ${r.defaultBranch}, private = ${isPrivate}`;
 }
 
 export async function getRepo(id: number): Promise<RepoRow | null> {

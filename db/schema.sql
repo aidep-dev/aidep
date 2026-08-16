@@ -6,8 +6,11 @@ create table if not exists installations (
   id bigint primary key, -- GitHub installation id
   account_login text not null,
   suspended_at timestamptz,
+  -- v1 billing is a hand-flipped flag; no Stripe
+  paid boolean not null default false,
   created_at timestamptz not null default now()
 );
+alter table installations add column if not exists paid boolean not null default false;
 
 create table if not exists repos (
   id bigint primary key, -- GitHub repo id
@@ -15,11 +18,13 @@ create table if not exists repos (
   owner text not null,
   name text not null,
   default_branch text not null default 'main',
+  private boolean not null default false,
   config jsonb,
   onboarding_pr_number int,
   onboarded_at timestamptz,
   created_at timestamptz not null default now()
 );
+alter table repos add column if not exists private boolean not null default false;
 
 create table if not exists scans (
   id bigserial primary key,
@@ -60,6 +65,15 @@ create table if not exists prs (
   eval_summary jsonb,
   created_at timestamptz not null default now(),
   unique (repo_id, number)
+);
+
+-- fake-door signal: who clicked upgrade/start-free before billing exists
+create table if not exists interest (
+  id bigserial primary key,
+  email text,
+  source text not null, -- 'pricing-upgrade' | 'landing-waitlist' | ...
+  context text,
+  created_at timestamptz not null default now()
 );
 
 create table if not exists meta (

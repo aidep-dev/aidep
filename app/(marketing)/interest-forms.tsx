@@ -1,0 +1,87 @@
+"use client";
+
+import { useState } from "react";
+
+type SendState = "idle" | "sending" | "done" | "error";
+
+async function postInterest(body: { source: string; email?: string }): Promise<boolean> {
+  try {
+    const res = await fetch("/api/interest", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export function WaitlistForm() {
+  const [state, setState] = useState<SendState>("idle");
+  const [email, setEmail] = useState("");
+
+  if (state === "done") {
+    return <p className="mt-6 text-sm text-ink">You&rsquo;re on the list.</p>;
+  }
+
+  return (
+    <form
+      className="mt-6 flex max-w-md gap-2"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setState("sending");
+        setState((await postInterest({ source: "landing-waitlist", email })) ? "done" : "error");
+      }}
+    >
+      <div className="w-full">
+        <input
+          type="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@company.com"
+          aria-label="Email"
+          className="w-full border border-rule bg-paper-raised px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-ink-muted focus:outline-none"
+        />
+        {state === "error" && (
+          <p className="mt-2 text-sm text-ink-secondary">That didn&rsquo;t go through. Try again.</p>
+        )}
+      </div>
+      <button
+        type="submit"
+        disabled={state === "sending"}
+        className="h-fit shrink-0 border border-rule px-4 py-2 text-sm text-ink hover:border-ink-muted disabled:opacity-60"
+      >
+        {state === "sending" ? "Joining…" : "Join the waitlist"}
+      </button>
+    </form>
+  );
+}
+
+export function UpgradeButton() {
+  const [state, setState] = useState<SendState>("idle");
+
+  if (state === "done") {
+    return <p className="mt-8 text-sm text-ink">Thanks. We&rsquo;ll be in touch.</p>;
+  }
+
+  return (
+    <div className="mt-8">
+      <button
+        type="button"
+        disabled={state === "sending"}
+        onClick={async () => {
+          setState("sending");
+          setState((await postInterest({ source: "pricing-upgrade" })) ? "done" : "error");
+        }}
+        className="border border-rule px-5 py-2.5 text-sm text-ink hover:border-ink-muted disabled:opacity-60"
+      >
+        {state === "sending" ? "One moment…" : "Upgrade"}
+      </button>
+      {state === "error" && (
+        <p className="mt-2 text-sm text-ink-secondary">That didn&rsquo;t go through. Try again.</p>
+      )}
+    </div>
+  );
+}
