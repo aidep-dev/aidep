@@ -1,0 +1,84 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`renderMarkdownReport > matches snapshot 1`] = `
+"# aidep scan report
+
+Repo: acme/fixture-repo
+
+Scan date: 2026-08-16
+
+## claude-3-5-sonnet-20241022 (anthropic)
+
+**retired 2025-10-28 — calls fail today**
+
+Replacement: claude-sonnet-4-6
+
+| file | line | matched |
+| --- | --- | --- |
+| src/claude_client.py | 8 | claude-3-5-sonnet-20241022 |
+
+## gemini-2.0-flash-001 (google)
+
+**retired 2026-06-01 — calls fail today**
+
+| file | line | matched |
+| --- | --- | --- |
+| .github/workflows/nightly.yml | 16 | gemini-2.0-flash-001 |
+
+.github/workflows/nightly.yml: workflow file — aidep will not edit this path; migrate manually
+
+## assistants-api (openai)
+
+dies 2026-08-26 (10 days)
+
+Replacement: responses-api
+
+Migration guide: https://platform.openai.com/docs/assistants/migration
+
+| file | line | matched |
+| --- | --- | --- |
+| .env.example | 2 | asst_ id literal |
+| .env.example | 2 | ASSISTANT_ID env var |
+| src/assistant.js | 6 | openai.beta.assistants |
+| src/assistant.js | 15 | openai.beta.threads |
+| src/assistant.js | 19 | openai.beta.threads |
+| src/assistant.js | 19 | createAndPoll |
+| src/assistant_flow.py | 9 | ASSISTANT_ID env var |
+| src/assistant_flow.py | 13 | client.beta.threads |
+| src/assistant_flow.py | 14 | client.beta.threads |
+| src/assistant_flow.py | 17 | client.beta.threads |
+| src/assistant_flow.py | 18 | ASSISTANT_ID env var |
+| src/assistant_flow.py | 22 | client.beta.threads |
+| src/assistant_flow.py | 23 | client.beta.threads |
+| src/assistant_flow.py | 29 | /v1/assistants |
+| src/assistant_flow.py | 32 | OpenAI-Beta: assistants header |
+
+## gpt-4-turbo (openai)
+
+dies 2026-10-23 (68 days) (earliest possible date)
+
+| file | line | matched |
+| --- | --- | --- |
+| src/assistant.js | 7 | gpt-4-turbo |
+
+## gpt-5-2025-08-07 (openai)
+
+dies 2026-12-11 (117 days)
+
+Replacement: gpt-5.6-sol
+
+| file | line | matched |
+| --- | --- | --- |
+| src/summarize.ts | 7 | gpt-5-2025-08-07 |
+
+## temperature-top-p-top-k (anthropic)
+
+deprecated — no shutdown date announced yet
+
+| file | line | matched |
+| --- | --- | --- |
+| src/opus_params.py | 10 | temperature |
+
+Files scanned: 9, skipped: 1
+"
+`;

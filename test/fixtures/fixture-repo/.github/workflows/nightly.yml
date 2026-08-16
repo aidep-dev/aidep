@@ -1,0 +1,23 @@
+name: nightly-digest
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Summarize open issues
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          curl -s "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent" \
+            -H "x-goog-api-key: $GEMINI_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d @.github/digest_prompt.json > digest.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest
+          path: digest.json
