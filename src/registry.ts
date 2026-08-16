@@ -24,7 +24,8 @@ export type RegistryRow = z.infer<typeof RegistryRowSchema>;
 
 const RegistryFileSchema = z.array(RegistryRowSchema);
 
-let cache: { source: string; rows: RegistryRow[] } | null = null;
+const CACHE_TTL_MS = 10 * 60 * 1000;
+let cache: { source: string; rows: RegistryRow[]; loadedAt: number } | null = null;
 
 /**
  * Load the full registry (all providers merged).
@@ -33,7 +34,7 @@ let cache: { source: string; rows: RegistryRow[] } | null = null;
  * https:// base URL serving the same three files (prod: raw.githubusercontent).
  */
 export async function loadRegistry(source = process.env.REGISTRY_SOURCE ?? "../aidep-registry/registry"): Promise<RegistryRow[]> {
-  if (cache?.source === source) return cache.rows;
+  if (cache?.source === source && Date.now() - cache.loadedAt < CACHE_TTL_MS) return cache.rows;
   const files = ["openai.json", "anthropic.json", "google.json"];
   const rows: RegistryRow[] = [];
   for (const f of files) {
@@ -42,6 +43,6 @@ export async function loadRegistry(source = process.env.REGISTRY_SOURCE ?? "../a
       : await readFile(`${source}/${f}`, "utf8");
     rows.push(...RegistryFileSchema.parse(JSON.parse(raw)));
   }
-  cache = { source, rows };
+  cache = { source, rows, loadedAt: Date.now() };
   return rows;
 }

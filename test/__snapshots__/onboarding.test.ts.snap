@@ -1,0 +1,74 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildOnboardingPr > matches snapshot 1`] = `
+"Welcome to aidep! This PR sets up deprecation monitoring for your AI provider dependencies. aidep does nothing else until you merge it.
+
+Merge this PR to activate aidep. Close it unmerged to disable aidep on this repo.
+
+## What we found
+
+Scan date: 2026-08-16
+
+## claude-3-5-sonnet-20241022 (anthropic)
+
+**retired 2025-10-28 — calls fail today**
+
+Replacement: claude-sonnet-4-6
+
+| file | line | matched |
+| --- | --- | --- |
+| src/claude.ts | 1 | claude-3-5-sonnet-20241022 |
+
+## gemini-2.0-flash-001 (google)
+
+**retired 2026-06-01 — calls fail today**
+
+| file | line | matched |
+| --- | --- | --- |
+| .github/workflows/nightly.yml | 1 | gemini-2.0-flash-001 |
+
+.github/workflows/nightly.yml: workflow file — aidep will not edit this path; migrate manually
+
+## assistants-api (openai)
+
+dies 2026-08-26 (10 days)
+
+Replacement: responses-api
+
+Migration guide: https://platform.openai.com/docs/assistants/migration
+
+| file | line | matched |
+| --- | --- | --- |
+| src/agent.py | 2 | /v1/assistants |
+
+## gpt-4-turbo (openai)
+
+dies 2026-10-23 (68 days) (earliest possible date)
+
+| file | line | matched |
+| --- | --- | --- |
+| src/agent.py | 1 | gpt-4-turbo |
+
+Files scanned: 3, skipped: 0
+
+## What happens after you merge
+
+- aidep scans on every push to the default branch and whenever the deprecation registry changes.
+- Findings appear on your dashboard.
+- Migration PRs are opt-in per finding from the dashboard. aidep never opens a migration PR you did not request.
+- The config file in this PR controls everything.
+
+## Config
+
+This PR adds \`.github/aidep.json\`:
+
+- \`schedule\`: "daily" or "weekly" scan cadence.
+- \`ignore\`: glob patterns for paths aidep skips.
+- \`prCap\`: max open aidep migration PRs at once.
+- \`evals\`: false by default. When true, migration PRs additionally ship an evals/ pack + a GitHub Actions workflow file that runs your prompts on old vs new model in YOUR CI with YOUR keys; you review the extracted test cases in the PR before anything runs.
+
+Questions? https://aidep.test/docs
+
+- [ ] <!-- aidep-rebase -->If you want aidep to re-run the scan and refresh this PR, check this box.
+<!-- aidep:body-hash:58d842804f07e56a1d8043b932854c5ca256f66e72e72cd099c5c42b243ee510 -->"
+`;

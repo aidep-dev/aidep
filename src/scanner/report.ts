@@ -11,6 +11,15 @@ function isWorkflowPath(path: string): boolean {
   return path.startsWith(".github/workflows/") || path.includes("/.github/workflows/");
 }
 
+/**
+ * Repo paths are hostile input. Backslash-escape the markdown-active
+ * punctuation so a path can't break the table (|) or inject links/HTML
+ * ([, ], <, >, `). GFM renders `\<` etc. as the literal character.
+ */
+function mdEscape(s: string): string {
+  return s.replace(/[\\|[\]<>`]/g, "\\$&");
+}
+
 function statusLine(f: Finding, now: string): string {
   if (f.status === "retired") {
     return f.dies === null
@@ -25,7 +34,7 @@ function statusLine(f: Finding, now: string): string {
 
 export function renderMarkdownReport(
   result: ScanResult,
-  opts: { now: string; repoLabel?: string },
+  opts: { now: string; repoLabel?: string; header?: boolean },
 ): string {
   // group by registryId; result.findings is already sorted, so each group's
   // rows stay in path/line order
@@ -50,8 +59,11 @@ export function renderMarkdownReport(
     return fa.registryId < fb.registryId ? -1 : 1;
   });
 
-  const out: string[] = ["# aidep scan report", ""];
-  if (opts.repoLabel !== undefined) out.push(`Repo: ${opts.repoLabel}`, "");
+  const out: string[] = [];
+  if (opts.header !== false) {
+    out.push("# aidep scan report", "");
+    if (opts.repoLabel !== undefined) out.push(`Repo: ${opts.repoLabel}`, "");
+  }
   out.push(`Scan date: ${opts.now}`, "");
 
   if (sections.length === 0) {
@@ -66,12 +78,12 @@ export function renderMarkdownReport(
     if (first.migrationUrl !== null) out.push(`Migration guide: ${first.migrationUrl}`, "");
     out.push("| file | line | matched |", "| --- | --- | --- |");
     for (const f of section) {
-      out.push(`| ${f.path} | ${f.line} | ${f.matched} |`);
+      out.push(`| ${mdEscape(f.path)} | ${f.line} | ${mdEscape(f.matched)} |`);
     }
     out.push("");
     const workflowPaths = [...new Set(section.filter((f) => isWorkflowPath(f.path)).map((f) => f.path))];
     for (const p of workflowPaths) {
-      out.push(`${p}: workflow file — aidep will not edit this path; migrate manually`, "");
+      out.push(`${mdEscape(p)}: workflow file — aidep will not edit this path; migrate manually`, "");
     }
   }
 

@@ -1,0 +1,183 @@
+import postgres from "postgres";
+import type { Finding } from "../scanner/types.ts";
+import type { AidepConfig } from "../config.ts";
+
+export const sql = postgres(
+  process.env.DATABASE_URL ?? "postgres://postgres@localhost:5433/aidep",
+  { onnotice: () => {} },
+);
+
+// ---- installations ----
+
+export async function upsertInstallation(id: number, accountLogin: string): Promise<void> {
+  await sql`
+    insert into installations (id, account_login) values (${id}, ${accountLogin})
+    on conflict (id) do update set account_login = ${accountLogin}, suspended_at = null`;
+}
+
+export async function setInstallationSuspended(id: number, suspended: boolean): Promise<void> {
+  await sql`update installations set suspended_at = ${suspended ? sql`now()` : null} where id = ${id}`;
+}
+
+/** installation-deleted purge: cascades to repos, scans, findings, prs. */
+export async function deleteInstallation(id: number): Promise<void> {
+  await sql`delete from installations where id = ${id}`;
+}
+
+// ---- repos ----
+
+export interface RepoRow {
+  id: number;
+  installation_id: number;
+  owner: string;
+  name: string;
+  default_branch: string;
+  config: AidepConfig | null;
+  onboarding_pr_number: number | null;
+  onboarded_at: string | null;
+}
+
+export async function upsertRepo(r: {
+  id: number;
+  installationId: number;
+  owner: string;
+  name: string;
+  defaultBranch: string;
+}): Promise<void> {
+  await sql`
+    insert into repos (id, installation_id, owner, name, default_branch)
+    values (${r.id}, ${r.installationId}, ${r.owner}, ${r.name}, ${r.defaultBranch})
+    on conflict (id) do update set
+      installation_id = ${r.installationId}, owner = ${r.owner},
+      name = ${r.name}, default_branch = ${r.defaultBranch}`;
+}
+
+export async function getRepo(id: number): Promise<RepoRow | null> {
+  const rows = await sql<RepoRow[]>`select * from repos where id = ${id}`;
+  return rows[0] ?? null;
+}
+
+export async function getRepoByFullName(owner: string, name: string): Promise<RepoRow | null> {
+  const rows = await sql<RepoRow[]>`select * from repos where owner = ${owner} and name = ${name}`;
+  return rows[0] ?? null;
+}
+
+export async function setOnboardingPr(repoId: number, prNumber: number): Promise<void> {
+  await sql`update repos set onboarding_pr_number = ${prNumber} where id = ${repoId}`;
+}
+
+export async function markOnboarded(repoId: number, config: AidepConfig): Promise<void> {
+  await sql`update repos set onboarded_at = now(), config = ${sql.json(config)} where id = ${repoId}`;
+}
+
+export async function setRepoConfig(repoId: number, config: AidepConfig): Promise<void> {
+  await sql`update repos set config = ${sql.json(config)} where id = ${repoId}`;
+}
+
+// ---- scans ----
+
+export async function createScan(repoId: number, headSha: string | null): Promise<number> {
+  const rows = await sql<{ id: number }[]>`
+    insert into scans (repo_id, head_sha) values (${repoId}, ${headSha}) returning id`;
+  return rows[0].id;
+}
+
+export async function finishScan(
+  scanId: number,
+  status: "done" | "failed",
+  stats: { filesScanned: number; filesSkipped: number; findings: number } | null,
+): Promise<void> {
+  await sql`
+    update scans set status = ${status}, stats = ${stats ? sql.json(stats) : null},
+      finished_at = now() where id = ${scanId}`;
+}
+
+// ---- findings ----
+
+export interface FindingRow {
+  id: number;
+  repo_id: number;
+  registry_id: string;
+  surface: string;
+  path: string;
+  line: number;
+  matched: string;
+  replacement_id: string | null;
+  dies: string | null;
+  dies_is_earliest: boolean;
+  status: "open" | "pr_open" | "resolved" | "ignored";
+  pr_id: number | null;
+}
+
+/**
+ * Bulk upsert this scan's findings, then resolve open findings the scan no
+ * longer saw. Re-appearing resolved findings reopen.
+ */
+export async function recordFindings(
+  repoId: number,
+  scanId: number,
+  findings: Finding[],
+): Promise<void> {
+  for (const f of findings) {
+    await sql`
+      insert into findings
+        (repo_id, scan_id, registry_id, surface, path, line, matched,
+         replacement_id, dies, dies_is_earliest)
+      values
+        (${repoId}, ${scanId}, ${f.registryId}, ${f.surface}, ${f.path}, ${f.line},
+         ${f.matched}, ${f.replacementId}, ${f.dies}, ${f.diesIsEarliestPossible})
+      on conflict (repo_id, registry_id, path, line, matched) do update set
+        scan_id = ${scanId}, last_seen = now(),
+        replacement_id = ${f.replacementId}, dies = ${f.dies},
+        dies_is_earliest = ${f.diesIsEarliestPossible},
+        status = case when findings.status = 'resolved' then 'open' else findings.status end`;
+  }
+  await sql`
+    update findings set status = 'resolved'
+    where repo_id = ${repoId} and status = 'open' and scan_id is distinct from ${scanId}`;
+}
+
+export async function listOpenFindings(repoId: number): Promise<FindingRow[]> {
+  return sql<FindingRow[]>`
+    select * from findings
+    where repo_id = ${repoId} and status in ('open', 'pr_open')
+    order by dies asc nulls last, path, line`;
+}
+
+export async function markFindingsPrOpen(repoId: number, registryId: string, prId: number): Promise<void> {
+  await sql`
+    update findings set status = 'pr_open', pr_id = ${prId}
+    where repo_id = ${repoId} and registry_id = ${registryId} and status = 'open'`;
+}
+
+// ---- prs ----
+
+export async function createPrRecord(r: {
+  repoId: number;
+  number: number;
+  deprecationEvent: string;
+  branch: string;
+  evalStatus?: string;
+}): Promise<number> {
+  const rows = await sql<{ id: number }[]>`
+    insert into prs (repo_id, number, deprecation_event, branch, eval_status)
+    values (${r.repoId}, ${r.number}, ${r.deprecationEvent}, ${r.branch}, ${r.evalStatus ?? "none"})
+    returning id`;
+  return rows[0].id;
+}
+
+export async function getPrByNumber(repoId: number, number: number) {
+  const rows = await sql`select * from prs where repo_id = ${repoId} and number = ${number}`;
+  return rows[0] ?? null;
+}
+
+export async function setPrEval(
+  repoId: number,
+  number: number,
+  evalStatus: string,
+  summary: unknown,
+): Promise<void> {
+  await sql`
+    update prs set eval_status = ${evalStatus}, eval_summary = ${sql.json(summary as never)}
+    where repo_id = ${repoId} and number = ${number}`;
+}

@@ -1,0 +1,11 @@
+import { getApp } from "./app.ts";
+import type { OctokitLike } from "./types.ts";
+
+/**
+ * Single seam for obtaining an installation-scoped octokit. Both the webhook
+ * handlers and the job pipeline go through here so tests can mock one module.
+ */
+export async function installationOctokit(installationId: number): Promise<OctokitLike> {
+  const octokit = await getApp().getInstallationOctokit(installationId);
+  return octokit as unknown as OctokitLike;
+}
