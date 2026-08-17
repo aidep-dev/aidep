@@ -65,9 +65,14 @@ function humanDate(iso: string): string {
 }
 
 function branchFor(event: RegistryRow): string {
-  // registry ids are already [a-z0-9.-] after the last colon; the replace is
-  // a guard so a future id can never produce a git-invalid ref
-  const slug = modelSlug(event.id).toLowerCase().replace(/[^a-z0-9.-]+/g, "-");
+  // Prefix with provider + surface: the id tail alone can collide across
+  // providers/surfaces (e.g. an openai:model:* and an anthropic:model:* that
+  // share a slug), which would give two events the same branch and let prCap
+  // and rerun target the wrong PR. The replace guards a future id from
+  // producing a git-invalid ref (registry ids are already [a-z0-9.-]).
+  const slug = `${event.provider}-${event.surface}-${modelSlug(event.id)}`
+    .toLowerCase()
+    .replace(/[^a-z0-9.-]+/g, "-");
   return `aidep/${slug}`;
 }
 
@@ -233,11 +238,11 @@ export function renderEvalResults(r: EvalResults): string {
 }
 
 /** Swap the body's "## Eval" section (up to the next "## " heading) for
- * `section`, which must end with a blank line. Bodies without the marker
- * come back unchanged. */
+ * `section`, which must end with a blank line. Bodies without the marker get
+ * the section appended (never dropped, so CI results are always recorded). */
 export function replaceEvalSection(body: string, section: string): string {
   const start = body.indexOf("## Eval");
-  if (start === -1) return body;
+  if (start === -1) return body.endsWith("\n") ? body + section : `${body}\n${section}`;
   const next = body.indexOf("\n## ", start);
   if (next === -1) return body.slice(0, start) + section;
   return body.slice(0, start) + section + body.slice(next + 1);

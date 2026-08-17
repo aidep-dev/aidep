@@ -5,7 +5,7 @@
  */
 
 import type { RegistryRow } from "../registry.ts";
-import { ID_BOUNDARY_LEFT, ID_BOUNDARY_RIGHT, PARAM_MODEL_GATE } from "../scanner/patterns.ts";
+import { PARAM_MODEL_GATE } from "../scanner/patterns.ts";
 import { mdEscape } from "../scanner/report.ts";
 import { transformAssistants } from "./assistants.ts";
 import { removeSamplingParams } from "./params.ts";
@@ -20,14 +20,27 @@ import type {
 const SAMPLING_PARAMS = ["temperature", "top_p", "top_k"];
 const ASSISTANTS_ROW_ID = "openai:endpoint:assistants-api";
 
+// Transform-local id boundary. Stricter than the scanner's: it also refuses a
+// "/" neighbour so an id inside https://.../models/<id> or evals/<id>/x is
+// never auto-rewritten. The scanner keeps its own looser boundary so those
+// still surface as findings; aidep just does not edit them.
+const TX_BOUNDARY_LEFT = "(?<![A-Za-z0-9._/-])";
+const TX_BOUNDARY_RIGHT = "(?![A-Za-z0-9._/-])";
+
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** Boundary-guarded id regex; same rule as the scanner, so "gpt-4-turbo"
- * never rewrites inside "gpt-4-turbo-preview". */
 function idRegex(id: string): RegExp {
-  return new RegExp(ID_BOUNDARY_LEFT + escapeRegExp(id) + ID_BOUNDARY_RIGHT, "g");
+  const left = /^[A-Za-z0-9._-]/.test(id) ? TX_BOUNDARY_LEFT : "";
+  const right = /[A-Za-z0-9._-]$/.test(id) ? TX_BOUNDARY_RIGHT : "";
+  return new RegExp(left + escapeRegExp(id) + right, "g");
+}
+
+/** Docs/changelogs are prose, not code: matches there degrade to a checklist
+ * item rather than an edit. */
+function isDocPath(path: string): boolean {
+  return /\.(?:md|markdown|mdx|txt|rst|adoc)$/i.test(path) || /changelog/i.test(path);
 }
 
 /** "anthropic:model:claude-sonnet-4-6" and bare "claude-sonnet-4-6" both
@@ -41,6 +54,106 @@ function untouchedFile(f: EventFileInput): FileTransform {
   return { path: f.path, migrated: null, applied: [], checklist: [], swaps: [] };
 }
 
+/**
+ * The smallest balanced `(...)` region that contains `target` (0-based line),
+ * as [openLine, closeLine] inclusive, or null when the target line has no
+ * still-open paren at its end (e.g. a fully single-line call).
+ */
+function enclosingParenRange(lines: string[], target: number): [number, number] | null {
+  const openStack: number[] = []; // line of each still-open "("
+  let quote: string | null = null;
+  let capturedDepth: number | null = null;
+  let capturedOpen: number | null = null;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    for (let j = 0; j < line.length; j++) {
+      const ch = line[j];
+      if (quote !== null) {
+        if (ch === "\\") {
+          j++;
+          continue;
+        }
+        if (ch === quote) quote = null;
+        continue;
+      }
+      if (ch === '"' || ch === "'" || ch === "`") {
+        quote = ch;
+        continue;
+      }
+      if (ch === "(") {
+        openStack.push(i);
+        continue;
+      }
+      if (ch === ")") {
+        if (openStack.length === 0) continue;
+        openStack.pop();
+        // the paren innermost-open at the target line just closed
+        if (capturedDepth !== null && openStack.length === capturedDepth - 1) {
+          return [capturedOpen!, i];
+        }
+      }
+    }
+    if (i === target && capturedDepth === null && openStack.length > 0) {
+      capturedDepth = openStack.length;
+      capturedOpen = openStack[openStack.length - 1];
+    }
+  }
+  return null;
+}
+
+/** Strip line comments (`#`, `//`) so a commented model mention never reads as
+ * real code. Quote-aware; a good-enough heuristic that only ever biases toward
+ * a checklist, never toward a wrong edit. */
+function stripLineComments(content: string): string {
+  return content
+    .split("\n")
+    .map((line) => {
+      let quote: string | null = null;
+      for (let j = 0; j < line.length; j++) {
+        const ch = line[j];
+        if (quote !== null) {
+          if (ch === "\\") {
+            j++;
+            continue;
+          }
+          if (ch === quote) quote = null;
+          continue;
+        }
+        if (ch === '"' || ch === "'" || ch === "`") {
+          quote = ch;
+          continue;
+        }
+        if (ch === "#") return line.slice(0, j);
+        if (ch === "/" && line[j + 1] === "/") return line.slice(0, j);
+      }
+      return line;
+    })
+    .join("\n");
+}
+
+const MODEL_PIN_RE = /\bmodel\s*[:=]\s*["']([^"']+)["']/g;
+
+/**
+ * Decide whether a param file's sampling args can be auto-removed. Only when
+ * every model pinned in real code is gated (Claude 4.7+); a mix of gated and
+ * ungated pins, or a gated id that shows up only in a comment, degrades to a
+ * checklist so we never strip params from an ungated model's call.
+ */
+function paramGateDecision(content: string): "none" | "edit" | "manual" {
+  const code = stripLineComments(content);
+  const pins = [...code.matchAll(MODEL_PIN_RE)].map((m) => m[1]);
+  if (pins.length > 0) {
+    const gated = pins.filter((m) => PARAM_MODEL_GATE.test(m));
+    if (gated.length === 0) return "none";
+    return gated.length === pins.length ? "edit" : "manual";
+  }
+  // no clean string pin: a gated id in real code, or only in a comment, is
+  // ambiguous -> hand it to a human
+  if (PARAM_MODEL_GATE.test(code)) return "manual";
+  if (PARAM_MODEL_GATE.test(content)) return "manual";
+  return "none";
+}
+
 function modelEvent(event: RegistryRow, files: EventFileInput[]): EventTransformResult {
   const eventChecklist: ChecklistItem[] = [];
   const newModel = event.replacement_id === null ? null : replacementModel(event.replacement_id);
@@ -49,21 +162,54 @@ function modelEvent(event: RegistryRow, files: EventFileInput[]): EventTransform
 
   const outFiles = files.map((f) => {
     const ft = untouchedFile(f);
-    let content = f.content;
+
+    // docs/changelogs: never edited, matches become a checklist item
+    if (isDocPath(f.path)) {
+      for (const id of event.api_ids) {
+        if (!idRegex(id).test(f.content)) continue;
+        anyHit = true;
+        const rep = newModel === null ? "" : ` (replacement: ${mdEscape(newModel)})`;
+        ft.checklist.push({
+          id: "model-doc-mention",
+          text: `${mdEscape(f.path)} mentions ${mdEscape(id)}; aidep does not edit docs/changelogs. Update the reference by hand${rep}.`,
+        });
+      }
+      return ft;
+    }
+
+    const lines = f.content.split("\n");
     let touched = false;
+    const swappedLines = new Set<number>();
     for (const id of event.api_ids) {
-      if (!idRegex(id).test(content)) continue;
+      if (!idRegex(id).test(f.content)) continue;
       anyHit = true;
       if (newModel === null) continue;
-      content = content.replace(idRegex(id), newModel);
-      touched = true;
-      anySwap = true;
-      ft.swaps.push({ old: id, new: newModel });
-      ft.applied.push({ kind: "model-swap", description: `swapped ${id} to ${newModel} in ${f.path}` });
+      let idSwapped = false;
+      for (let i = 0; i < lines.length; i++) {
+        if (!idRegex(id).test(lines[i])) continue;
+        lines[i] = lines[i].replace(idRegex(id), newModel);
+        swappedLines.add(i);
+        idSwapped = true;
+      }
+      if (idSwapped) {
+        touched = true;
+        anySwap = true;
+        ft.swaps.push({ old: id, new: newModel });
+        ft.applied.push({ kind: "model-swap", description: `swapped ${id} to ${newModel} in ${f.path}` });
+      }
     }
+
+    let content = lines.join("\n");
     if (touched && newModel !== null && PARAM_MODEL_GATE.test(newModel)) {
-      // the swap landed on a Claude 4.7+ model: non-default sampling params 400
-      const removal = removeSamplingParams(content, SAMPLING_PARAMS);
+      // the swap landed on a Claude 4.7+ model: non-default sampling params
+      // 400 - but only for THIS call, so scope removal to the swapped call's
+      // enclosing paren region (never file-wide onto other models' calls)
+      const allowed = new Set<number>();
+      for (const ln of swappedLines) {
+        const region = enclosingParenRange(lines, ln) ?? [ln, ln];
+        for (let k = region[0]; k <= region[1]; k++) allowed.add(k);
+      }
+      const removal = removeSamplingParams(content, SAMPLING_PARAMS, allowed);
       if (removal.removed.length > 0) {
         content = removal.content;
         const dropped = [...new Set(removal.removed.map((r) => r.param))];
@@ -106,8 +252,15 @@ function modelEvent(event: RegistryRow, files: EventFileInput[]): EventTransform
 function paramEvent(event: RegistryRow, files: EventFileInput[]): EventTransformResult {
   const outFiles = files.map((f) => {
     const ft = untouchedFile(f);
-    // only files pinning a Claude 4.7+/5+ model are a live deprecation
-    if (!PARAM_MODEL_GATE.test(f.content)) return ft;
+    const decision = paramGateDecision(f.content);
+    if (decision === "none") return ft;
+    if (decision === "manual") {
+      ft.checklist.push({
+        id: "param-gate-manual",
+        text: `${mdEscape(f.path)} references a Claude 4.7+ model but aidep could not confirm every call in it pins one (mixed or comment-only). Remove temperature/top_p/top_k only from the gated calls by hand; non-default values return 400 there.`,
+      });
+      return ft;
+    }
     const removal = removeSamplingParams(f.content, event.api_ids);
     if (removal.removed.length > 0) {
       ft.migrated = removal.content;

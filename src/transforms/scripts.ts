@@ -56,6 +56,17 @@ for (const t of assistant.tools ?? []) {
 const model = JSON.stringify(assistant.model);
 const instructions = JSON.stringify(assistant.instructions ?? "");
 const toolsJson = JSON.stringify(tools);
+// carry the assistant's own sampling/format config over: dropping these would
+// silently change behaviour. temperature/top_p/metadata keep their name on
+// responses.create; response_format becomes text.format.
+const hasTemp = assistant.temperature !== undefined && assistant.temperature !== null;
+const hasTopP = assistant.top_p !== undefined && assistant.top_p !== null;
+const rf = assistant.response_format;
+const hasRf = rf !== undefined && rf !== null && rf !== "auto";
+const meta =
+  assistant.metadata && Object.keys(assistant.metadata).length > 0
+    ? JSON.stringify(assistant.metadata)
+    : null;
 
 console.log("# Python");
 console.log("response = client.responses.create(");
@@ -64,6 +75,12 @@ console.log("    instructions=" + instructions + ",");
 if (tools.length > 0) {
   console.log("    tools=" + toolsJson + ",  # rewrite true/false/null as True/False/None");
 }
+if (hasTemp) console.log("    temperature=" + assistant.temperature + ",");
+if (hasTopP) console.log("    top_p=" + assistant.top_p + ",");
+if (hasRf) {
+  console.log('    text={"format": ' + JSON.stringify(rf) + "},  # response_format -> text.format");
+}
+if (meta) console.log("    metadata=" + meta + ",");
 console.log("    conversation=conversation_id,");
 console.log('    input=[{"role": "user", "content": user_input}],');
 console.log(")");
@@ -75,6 +92,12 @@ console.log("  instructions: " + instructions + ",");
 if (tools.length > 0) {
   console.log("  tools: " + toolsJson + ",");
 }
+if (hasTemp) console.log("  temperature: " + assistant.temperature + ",");
+if (hasTopP) console.log("  top_p: " + assistant.top_p + ",");
+if (hasRf) {
+  console.log("  text: { format: " + JSON.stringify(rf) + " },  // response_format -> text.format");
+}
+if (meta) console.log("  metadata: " + meta + ",");
 console.log("  conversation: conversationId,");
 console.log('  input: [{ role: "user", content: userInput }],');
 console.log("});");
@@ -136,7 +159,13 @@ for (;;) {
           text: part.text.value,
         });
       } else if (part.type === "image_url") {
-        content.push({ type: "input_image", image_url: part.image_url.url });
+        if (m.role === "assistant") {
+          // input_image is an input-only content type; the items API rejects
+          // it on an assistant turn, so skip it loudly rather than send a 400
+          skipped.push(m.id + ": assistant-role image_url (input_image is input-only)");
+        } else {
+          content.push({ type: "input_image", image_url: part.image_url.url });
+        }
       } else if (part.type === "image_file") {
         // OpenAI's recipe drops these silently; we skip loudly instead.
         skipped.push(m.id + ": image_file " + part.image_file.file_id);

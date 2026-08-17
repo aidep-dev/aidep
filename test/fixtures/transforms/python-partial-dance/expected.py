@@ -9,7 +9,7 @@ ASSISTANT_ID = os.environ["OPENAI_ASSISTANT_ID"]
 
 
 def kick_off(prompt: str) -> str:
-    thread = client.conversations.create()
+    thread = client.beta.threads.create()
     client.beta.threads.messages.create(
         thread_id=thread.id, role="user", content=prompt
     )

@@ -169,9 +169,9 @@ export default async function LandingPage() {
             <div className="max-w-xl">
               <h3 className="text-xl">Opt in to migration PRs</h3>
               <p className="mt-2 leading-relaxed text-ink-secondary">
-                Each PR migrates one identifier with a deterministic diff. Anything that can&rsquo;t
-                be rewritten safely becomes a manual checklist in the PR body, not a guess. aidep
-                never touches .github/workflows.
+                One PR per deprecation, grouping every file it touches. The safe rewrites are
+                applied; anything that can&rsquo;t be rewritten safely becomes a manual checklist in
+                the PR body, not a guess. aidep never touches .github/workflows.
               </p>
             </div>
           </li>
@@ -180,11 +180,12 @@ export default async function LandingPage() {
             <div>
               <h3 className="text-xl">Merge on evidence</h3>
               <p className="mt-2 max-w-xl leading-relaxed text-ink-secondary">
-                Every migration PR replays your prompts against the old model and the new one, in
-                your CI with your keys, and posts the diff. That comment is the merge decision.
+                Turn on evals and a model-swap PR ships a pack that replays your prompts against the
+                old model and the new one, in your CI with your keys, and posts the result. That
+                comment is the merge decision.
               </p>
               <div className="mt-6 max-w-xl border border-rule bg-paper-raised p-4">
-                <p className="text-xs text-ink-muted">aidep bot commented on #241</p>
+                <p className="text-xs text-ink-muted">github-actions bot commented on #241</p>
                 <pre className="mt-3 overflow-x-auto font-mono text-xs leading-relaxed text-ink">
                   {`eval gpt-4o-2024-05-13 -> gpt-5.6-sol
 behavior held on 18/20 prompts

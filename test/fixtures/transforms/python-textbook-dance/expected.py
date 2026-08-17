@@ -15,7 +15,7 @@ def ask_assistant(prompt: str) -> list[str]:
         conversation=thread.id,
         input=[{"role": "user", "content": prompt}],
     )
-    return response.output_text
+    return [response.output_text]
 
 
 def list_assistants_raw() -> dict:

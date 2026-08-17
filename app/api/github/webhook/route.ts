@@ -21,16 +21,29 @@ export async function POST(req: Request): Promise<Response> {
   const app = getApp();
   registerHandlers(app); // idempotent per App instance
 
+  // Verify the signature on its own so a handler that throws can't be reported
+  // as a bad signature. A bad signature is 401 (GitHub drops it); a handler
+  // failure is 500, which shows red in the delivery log and gets redelivered.
+  // Verify the signature on its own so a handler that throws can't be reported
+  // as a bad signature. A bad signature is 401 (GitHub drops it); a handler
+  // failure is 500, which shows red in the delivery log and gets redelivered.
+  let signatureOk = false;
   try {
-    await app.webhooks.verifyAndReceive({
+    signatureOk = await app.webhooks.verify(body, req.headers.get("x-hub-signature-256") ?? "");
+  } catch {
+    signatureOk = false;
+  }
+  if (!signatureOk) return new Response("bad signature", { status: 401 });
+
+  try {
+    await app.webhooks.receive({
       id: req.headers.get("x-github-delivery") ?? "",
-      // GitHub sends the event name; verifyAndReceive validates it
+      // GitHub sends the event name; receive validates it
       name: (req.headers.get("x-github-event") ?? "") as never,
-      signature: req.headers.get("x-hub-signature-256") ?? "",
-      payload: body,
+      payload: JSON.parse(body) as never,
     });
   } catch {
-    return new Response("bad signature", { status: 401 });
+    return new Response("handler error", { status: 500 });
   }
 
   kick();

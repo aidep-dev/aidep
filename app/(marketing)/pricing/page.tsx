@@ -3,7 +3,7 @@ import { UpgradeButton } from "../interest-forms.tsx";
 
 export const metadata: Metadata = {
   title: "Pricing · aidep",
-  description: "Free for public repos and one private repo. $29 per private repo per month, flat.",
+  description: "Scanning and alerts are free on every repo. $29 per private repo per month for migration PRs and eval packs.",
 };
 
 export default function PricingPage() {
@@ -25,11 +25,13 @@ export default function PricingPage() {
             <p className="text-ink-secondary">$0</p>
           </div>
           <ul className="mt-6 max-w-md space-y-3 text-sm leading-relaxed text-ink-secondary">
-            <li className="border-b border-rule pb-3">Every public repo, no cap</li>
+            <li className="border-b border-rule pb-3">Every repo, public or private, no cap</li>
             <li className="border-b border-rule pb-3">
               Scanning, deprecation alerts, and the onboarding audit PR, always free
             </li>
-            <li className="border-b border-rule pb-3">1 private repo included</li>
+            <li className="border-b border-rule pb-3">
+              Migration PRs on public repos, free
+            </li>
           </ul>
           <a
             href={installUrl}

@@ -14,7 +14,7 @@ export interface Job {
   attempts: number;
 }
 
-const MAX_ATTEMPTS = 5;
+export const MAX_ATTEMPTS = 5;
 
 export async function enqueue(
   type: JobType,
@@ -30,7 +30,7 @@ export async function enqueue(
 
 export async function claimNext(): Promise<Job | null> {
   const rows = await sql<Job[]>`
-    update jobs set status = 'running', attempts = attempts + 1
+    update jobs set status = 'running', attempts = attempts + 1, claimed_at = now()
     where id = (
       select id from jobs
       where status = 'queued' and run_after <= now()
@@ -43,7 +43,9 @@ export async function claimNext(): Promise<Job | null> {
 }
 
 export async function complete(id: number): Promise<void> {
-  await sql`update jobs set status = 'done' where id = ${id}`;
+  // clear last_error too: a job that failed then succeeded on retry should not
+  // keep the stale error around.
+  await sql`update jobs set status = 'done', last_error = null where id = ${id}`;
 }
 
 export async function fail(id: number, error: string, attempts: number): Promise<void> {

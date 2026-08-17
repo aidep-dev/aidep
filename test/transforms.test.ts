@@ -140,6 +140,10 @@ const CASES: Case[] = [
   { name: "model-swap-to-47-with-temperature", event: OPUS41_ROW, input: "input.py", expected: "expected.py", path: "src/opus_reply.py" },
   { name: "param-only", event: PARAMS_ROW, input: "input.py", expected: "expected.py", path: "src/opus_params.py" },
   { name: "js-boundary-no-swap", event: GPT4_TURBO_ROW, input: "input.js", expected: "expected.js", path: "src/draft.js" },
+  // appended (keep earlier indices stable; CASES[0..6] are referenced by index)
+  { name: "nested-python-dance", event: ASSISTANTS_ROW, input: "input.py", expected: "expected.py", path: "src/nested.py" },
+  { name: "python-async-dance", event: ASSISTANTS_ROW, input: "input.py", expected: "expected.py", path: "src/async_flow.py" },
+  { name: "model-swap-param-scope", event: OPUS41_ROW, input: "input.py", expected: "expected.py", path: "src/replies.py" },
 ];
 
 function run(c: Case): { input: string; result: EventTransformResult } {
@@ -199,10 +203,10 @@ describe("python-partial-dance", () => {
   const { result } = run(CASES[2]);
   const ft = result.files[0];
 
-  it("still renames threads.create but leaves the unrecognized dance intact", () => {
-    expect(ft.migrated).toContain("client.conversations.create()");
-    expect(ft.migrated).toContain("runs.create");
-    expect(ft.migrated).toContain("while run.status");
+  it("leaves an unrecognized dance byte-identical: no threads.create rename, no rewrite", () => {
+    // renaming threads.create without rewriting the run loop would ship a
+    // broken hybrid (conversations.create + the old messages/runs loop)
+    expect(ft.migrated).toBeNull();
   });
 
   it("checklist names the file and the calls that were and were not seen", () => {
@@ -386,5 +390,194 @@ describe("prompt objects are never emitted", () => {
       expect(text).not.toContain('prompt={"id"');
       expect(text).not.toContain("prompt_id");
     }
+  });
+});
+
+describe("assistants.create removal never orphans live code", () => {
+  const content = [
+    'import OpenAI from "openai";',
+    "",
+    "const openai = new OpenAI();",
+    "",
+    "export async function setup(threadId, question) {",
+    "  const assistant = await openai.beta.assistants.create({",
+    '    model: "gpt-4-turbo",',
+    '    instructions: "Help.",',
+    "  });",
+    "  db.saveAssistantId(assistant.id);",
+    '  console.log("created", assistant.id);',
+    "  await openai.beta.threads.messages.create(threadId, {",
+    '    role: "user",',
+    "    content: question,",
+    "  });",
+    "  const run = await openai.beta.threads.runs.createAndPoll(threadId, {",
+    "    assistant_id: assistant.id,",
+    "  });",
+    "  const messages = await openai.beta.threads.messages.list(threadId);",
+    "  return messages.data[0].content[0].text.value;",
+    "}",
+    "",
+  ].join("\n");
+  const result = transformForEvent(ASSISTANTS_ROW, [{ path: "src/setup.js", content }], ALL_ROWS);
+  const ft = result.files[0];
+
+  it("keeps the create call when its id is used elsewhere", () => {
+    // deleting just the create statement would dangle db.saveAssistantId(assistant.id)
+    expect(ft.migrated).toContain("beta.assistants.create(");
+    expect(ft.migrated).toContain("db.saveAssistantId(assistant.id)");
+    expect(ft.migrated).toContain('console.log("created", assistant.id)');
+  });
+
+  it("still inlines the config into responses.create and rewrites the dance", () => {
+    expect(ft.migrated).toContain("openai.responses.create({");
+    expect(ft.migrated).toContain('model: "gpt-4-turbo"');
+    expect(ft.migrated).not.toContain("messages.list");
+    expect(ft.checklist.map((c) => c.id)).toContain("assistants-inline-partial");
+  });
+});
+
+describe("model id boundary: urls, paths, docs", () => {
+  it("never swaps an id sitting inside a URL/path", () => {
+    const content = 'const DOCS = "https://platform.openai.com/docs/models/gpt-4-turbo";\n';
+    const result = transformForEvent(GPT4_TURBO_ROW, [{ path: "src/links.ts", content }], ALL_ROWS);
+    expect(result.files[0].migrated).toBeNull();
+    expect(result.files[0].swaps).toEqual([]);
+  });
+
+  it("docs/changelogs get a checklist item, not an edit", () => {
+    const content = "# Changelog\n\nUse gpt-4-turbo for now.\n";
+    const result = transformForEvent(GPT4_TURBO_ROW, [{ path: "CHANGELOG.md", content }], ALL_ROWS);
+    expect(result.files[0].migrated).toBeNull();
+    const item = result.files[0].checklist.find((c) => c.id === "model-doc-mention");
+    expect(item).toBeDefined();
+    expect(item!.text).toContain("gpt-4-turbo");
+  });
+});
+
+describe("repo-controlled tool type is escaped in the checklist", () => {
+  it("a tool type with markdown/HTML is escaped", () => {
+    const content = [
+      "const a = await openai.beta.assistants.create({",
+      '  model: "gpt-4-turbo",',
+      '  tools: [{ type: "]<script>" }],',
+      "});",
+      "",
+    ].join("\n");
+    const result = transformForEvent(ASSISTANTS_ROW, [{ path: "src/ci.js", content }], ALL_ROWS);
+    const item = result.files[0].checklist.find((c) => c.id === "assistants-inline-partial");
+    expect(item).toBeDefined();
+    expect(item!.text).not.toContain("<script>");
+    expect(item!.text).toContain("\\<script\\>");
+  });
+});
+
+describe("findBlockEnd ignores braces inside comments", () => {
+  it("a stray } in a // comment does not cut the function short", () => {
+    const content = [
+      'import OpenAI from "openai";',
+      "const openai = new OpenAI();",
+      "",
+      "export async function ask(threadId, question) {",
+      "  // guard: never pass a raw } to the model",
+      "  await openai.beta.threads.messages.create(threadId, {",
+      '    role: "user",',
+      "    content: question,",
+      "  });",
+      "  const run = await openai.beta.threads.runs.createAndPoll(threadId, {",
+      "    assistant_id: process.env.ASSISTANT_ID,",
+      "  });",
+      "  const messages = await openai.beta.threads.messages.list(threadId);",
+      "  return messages.data[0].content[0].text.value;",
+      "}",
+      "",
+    ].join("\n");
+    const result = transformForEvent(ASSISTANTS_ROW, [{ path: "src/ask.js", content }], ALL_ROWS);
+    const out = result.files[0].migrated;
+    expect(out).not.toBeNull();
+    expect(out).toContain("openai.responses.create({");
+    expect(out).not.toContain("messages.list");
+  });
+});
+
+describe("param gate is per-pinned-model, not a file-wide substring", () => {
+  it("a 4.7+ model only in a comment does not strip params", () => {
+    const content = [
+      "import anthropic",
+      "",
+      "client = anthropic.Anthropic()",
+      "",
+      "",
+      "def draft(prompt: str) -> str:",
+      "    # switch to claude-opus-4-8 before the 400s start",
+      "    message = client.messages.create(",
+      "        model=CURRENT_MODEL,",
+      "        max_tokens=512,",
+      "        temperature=0.9,",
+      '        messages=[{"role": "user", "content": prompt}],',
+      "    )",
+      "    return message.content[0].text",
+      "",
+    ].join("\n");
+    const result = transformForEvent(PARAMS_ROW, [{ path: "src/draft.py", content }], ALL_ROWS);
+    const ft = result.files[0];
+    expect(ft.migrated).toBeNull();
+    expect(ft.checklist.map((c) => c.id)).toContain("param-gate-manual");
+  });
+
+  it("a mix of gated and ungated pins is a checklist, not a strip", () => {
+    const content = [
+      'a = client.messages.create(model="claude-opus-4-8", temperature=0.2)',
+      'b = client.messages.create(model="claude-3-haiku-20240307", temperature=0.7)',
+      "",
+    ].join("\n");
+    const result = transformForEvent(PARAMS_ROW, [{ path: "src/two.py", content }], ALL_ROWS);
+    const ft = result.files[0];
+    expect(ft.migrated).toBeNull();
+    expect(ft.checklist.map((c) => c.id)).toContain("param-gate-manual");
+  });
+
+  it("a standalone temperature assignment is never deleted", () => {
+    const content = [
+      "import anthropic",
+      "",
+      "client = anthropic.Anthropic()",
+      "",
+      "temperature = 0.9",
+      "",
+      "",
+      "def draft(prompt: str) -> str:",
+      "    message = client.messages.create(",
+      '        model="claude-opus-4-8",',
+      "        max_tokens=512,",
+      '        messages=[{"role": "user", "content": prompt}],',
+      "    )",
+      "    return message.content[0].text",
+      "",
+    ].join("\n");
+    const result = transformForEvent(PARAMS_ROW, [{ path: "src/cfg.py", content }], ALL_ROWS);
+    // the file pins only a gated model, so the gate says "edit", but the
+    // standalone `temperature = 0.9` is a statement, not a call kwarg, and
+    // must survive (deleting it would orphan later uses)
+    expect(result.files[0].migrated ?? content).toContain("temperature = 0.9");
+  });
+});
+
+describe("generated scripts keep config OpenAI's recipe would drop", () => {
+  it("fetch-and-inline prints temperature/top_p/response_format/metadata", () => {
+    const { result } = run(CASES[0]);
+    const gen = result.generatedFiles.find((g) => g.path === "aidep/fetch-and-inline.mjs");
+    expect(gen).toBeDefined();
+    for (const field of ["temperature", "top_p", "response_format", "metadata"]) {
+      expect(gen!.content).toContain(field);
+    }
+  });
+
+  it("backfill skips assistant-role image_url instead of sending input_image", () => {
+    const content = 'const t = await openai.beta.threads.retrieve("thread_abc123DEF");\n';
+    const result = transformForEvent(ASSISTANTS_ROW, [{ path: "src/history.js", content }], ALL_ROWS);
+    const gen = result.generatedFiles.find((g) => g.path === "aidep/backfill-threads.mjs");
+    expect(gen).toBeDefined();
+    expect(gen!.content).toContain("assistant-role image_url");
+    expect(gen!.content).toContain('m.role === "assistant"');
   });
 });

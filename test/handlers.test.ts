@@ -1,16 +1,20 @@
 import { generateKeyPairSync } from "node:crypto";
 import { App } from "octokit";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_CONFIG } from "../src/config.ts";
+import { AidepConfigSchema, DEFAULT_CONFIG } from "../src/config.ts";
 import {
+  createPrRecord,
   getRepo,
   markOnboarded,
+  setInstallationSuspended,
   setOnboardingPr,
+  setRepoConfig,
   sql,
   upsertInstallation,
   upsertRepo,
 } from "../src/db/index.ts";
 import { migrate } from "../src/db/migrate.ts";
+import { enqueue } from "../src/jobs.ts";
 import { registerHandlers } from "../src/github/handlers.ts";
 import { setAppForTesting } from "../src/github/app.ts";
 
@@ -127,6 +131,26 @@ describe("installation lifecycle", () => {
     [row] = await sql`select suspended_at from installations where id = ${INST}`;
     expect(row.suspended_at).toBeNull();
   });
+
+  it("re-upserting a suspended installation keeps it suspended", async () => {
+    await upsertInstallation(INST, "acme");
+    await setInstallationSuspended(INST, true);
+    // a re-install / webhook redelivery must not silently un-suspend
+    await receive("installation", {
+      action: "created",
+      installation: inst(INST),
+      repositories: [],
+    });
+    const [row] = await sql`select suspended_at from installations where id = ${INST}`;
+    expect(row.suspended_at).not.toBeNull();
+  });
+
+  it("deleted also purges queued jobs for the installation's repos", async () => {
+    await seedRepo(REPO_A);
+    await enqueue("scan", { repoId: REPO_A });
+    await receive("installation", { action: "deleted", installation: inst(INST) });
+    expect(await queuedJobs("scan", REPO_A)).toHaveLength(0);
+  });
 });
 
 describe("push", () => {
@@ -152,6 +176,18 @@ describe("push", () => {
     await push(REPO_A, "refs/heads/main", [".github/aidep.json"]);
     const jobs = await queuedJobs("scan", REPO_A);
     expect(jobs[0].payload).toMatchObject({ rereadConfig: true });
+  });
+
+  it("a config-touching push while a scan is queued still enqueues a follow-up", async () => {
+    await seedRepo(REPO_A, { onboarded: true });
+    await push(REPO_A, "refs/heads/main"); // first scan queued
+    await push(REPO_A, "refs/heads/main", [".github/aidep.json"]); // config change
+    const jobs = await queuedJobs("scan", REPO_A);
+    expect(jobs).toHaveLength(2);
+    expect(jobs.some((j) => j.payload.rereadConfig === true)).toBe(true);
+    // a non-config push behind the queue is still debounced
+    await push(REPO_A, "refs/heads/main", ["src/z.ts"]);
+    expect(await queuedJobs("scan", REPO_A)).toHaveLength(2);
   });
 
   it("ignores non-default branches, unknown repos, and un-onboarded repos", async () => {
@@ -215,6 +251,71 @@ describe("pull_request.closed (onboarding)", () => {
     await setOnboardingPr(REPO_A, 7);
     await closed(REPO_A, 8, true);
     expect((await getRepo(REPO_A))?.onboarded_at).toBeNull();
+  });
+
+  it("keeps the last-known config when the contents API errors on merge", async () => {
+    await seedRepo(REPO_A);
+    await setRepoConfig(REPO_A, AidepConfigSchema.parse({ schedule: "weekly" }));
+    await setOnboardingPr(REPO_A, 7);
+    requestMock.mockRejectedValueOnce(new Error("503 transient"));
+    await closed(REPO_A, 7, true);
+    const repo = await getRepo(REPO_A);
+    expect(repo?.onboarded_at).not.toBeNull();
+    // must not stomp the real config with DEFAULT_CONFIG (schedule "daily")
+    expect(repo?.config).toMatchObject({ schedule: "weekly" });
+  });
+});
+
+describe("pull_request.closed/reopened (migration PR)", () => {
+  const EVENT = "openai:model:gpt-4-turbo";
+  const migrationPr = (action: string, number: number, branch: string) =>
+    receive("pull_request", {
+      action,
+      number,
+      installation: inst(INST),
+      repository: { id: REPO_A },
+      pull_request: { number, merged: false, body: "", head: { ref: branch } },
+    });
+
+  async function seedMigrationFinding(prId: number, status: string): Promise<void> {
+    await sql`
+      insert into findings (repo_id, registry_id, surface, path, line, matched, status, pr_id)
+      values (${REPO_A}, ${EVENT}, 'model', 'src/x.ts', 1, 'gpt-4-turbo', ${status},
+              ${status === "pr_open" ? prId : null})`;
+  }
+
+  it("closed-unmerged migration PR releases its findings back to open", async () => {
+    await seedRepo(REPO_A, { onboarded: true });
+    const prId = await createPrRecord({
+      repoId: REPO_A,
+      number: 21,
+      deprecationEvent: EVENT,
+      branch: "aidep/openai-model-gpt-4-turbo",
+    });
+    await seedMigrationFinding(Number(prId), "pr_open");
+
+    await migrationPr("closed", 21, "aidep/openai-model-gpt-4-turbo");
+
+    const [f] = await sql`select status, pr_id from findings where repo_id = ${REPO_A}`;
+    expect(f.status).toBe("open");
+    expect(f.pr_id).toBeNull();
+  });
+
+  it("reopened migration PR restores its findings to pr_open", async () => {
+    await seedRepo(REPO_A, { onboarded: true });
+    const prId = await createPrRecord({
+      repoId: REPO_A,
+      number: 22,
+      deprecationEvent: EVENT,
+      branch: "aidep/openai-model-gpt-4-turbo",
+    });
+    await seedMigrationFinding(Number(prId), "open");
+
+    await migrationPr("reopened", 22, "aidep/openai-model-gpt-4-turbo");
+
+    const [f] = await sql`select status, pr_id from findings where repo_id = ${REPO_A}`;
+    expect(f.status).toBe("pr_open");
+    expect(Number(f.pr_id)).toBe(Number(prId));
   });
 });
 
@@ -286,5 +387,17 @@ describe("webhook route", () => {
     const body = JSON.stringify({ action: "suspend", installation: inst(INST) });
     const res = await post(body, "sha256=" + "0".repeat(64));
     expect(res.status).toBe(401);
+  });
+
+  it("returns 500 (not 401) when a validly signed payload makes a handler throw", async () => {
+    // valid signature, but installation.id is not a bigint -> the upsert throws
+    const body = JSON.stringify({
+      action: "created",
+      installation: { id: "not-a-bigint", account: { login: "acme" } },
+      repositories: [],
+    });
+    const { sign } = await import("@octokit/webhooks-methods");
+    const res = await post(body, await sign("testsecret", body));
+    expect(res.status).toBe(500);
   });
 });

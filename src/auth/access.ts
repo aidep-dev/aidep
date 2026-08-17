@@ -5,7 +5,12 @@ export const STATE_COOKIE = "aidep_oauth_state";
 
 /** Serialize a Set-Cookie value with the attributes every aidep cookie uses. */
 export function cookieHeader(name: string, value: string, maxAgeSeconds: number): string {
-  const secure = (process.env.APP_URL ?? "").startsWith("https") ? "; Secure" : "";
+  // Secure on https, and unconditionally in production so a misconfigured
+  // APP_URL can never drop it from a live session cookie.
+  const secure =
+    (process.env.APP_URL ?? "").startsWith("https") || process.env.NODE_ENV === "production"
+      ? "; Secure"
+      : "";
   return `${name}=${value}; HttpOnly${secure}; SameSite=Lax; Path=/; Max-Age=${maxAgeSeconds}`;
 }
 
@@ -40,26 +45,18 @@ export function getSessionFromCookies(
   return value ? openSession(value) : null;
 }
 
-// ponytail: per-process 60s cache of the user's installation ids. Saves a
-// GitHub round trip on bursts of dashboard requests; the tradeoff is a
-// revoked installation stays visible for up to a minute, and each server
-// instance caches independently. Swap for a shared cache if either bites.
-const installCache = new Map<number, { ids: number[]; at: number }>();
-
 export async function requireRepoAccess(
   session: Session,
   repoId: number,
 ): Promise<{ repo: RepoRow | null; allowed: boolean }> {
+  // repoId comes from Number() on a path segment; reject NaN/floats/negatives
+  // before they reach a bigint query.
+  if (!Number.isInteger(repoId) || repoId <= 0) return { repo: null, allowed: false };
   const repo = await getRepo(repoId);
   if (!repo) return { repo: null, allowed: false };
-  const cached = installCache.get(session.userId);
-  let ids: number[];
-  if (cached && Date.now() - cached.at < 60_000) {
-    ids = cached.ids;
-  } else {
-    ids = await getUserInstallationIds(session.token);
-    installCache.set(session.userId, { ids, at: Date.now() });
-  }
+  // Authorization is answered fresh by GitHub on every request: no cache, so a
+  // revoked installation is denied on the next call, not up to a minute later.
+  const ids = await getUserInstallationIds(session.token);
   // postgres returns bigint columns as strings; the GitHub ids are numbers
   return { repo, allowed: ids.includes(Number(repo.installation_id)) };
 }

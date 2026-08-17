@@ -91,4 +91,7 @@ create table if not exists jobs (
   last_error text,
   created_at timestamptz not null default now()
 );
+-- set when a job is claimed; lets the cron drain recover jobs wedged in
+-- 'running' by a crash between claim and complete/fail.
+alter table jobs add column if not exists claimed_at timestamptz;
 create index if not exists jobs_pending on jobs (run_after) where status = 'queued';

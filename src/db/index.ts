@@ -10,9 +10,12 @@ export const sql = postgres(
 // ---- installations ----
 
 export async function upsertInstallation(id: number, accountLogin: string): Promise<void> {
+  // Do NOT touch suspended_at here: a plain re-install or webhook redelivery
+  // would otherwise silently un-suspend a suspended install. Only the
+  // installation.unsuspend event clears it, via setInstallationSuspended.
   await sql`
     insert into installations (id, account_login) values (${id}, ${accountLogin})
-    on conflict (id) do update set account_login = ${accountLogin}, suspended_at = null`;
+    on conflict (id) do update set account_login = ${accountLogin}`;
 }
 
 export async function setInstallationSuspended(id: number, suspended: boolean): Promise<void> {
@@ -21,6 +24,12 @@ export async function setInstallationSuspended(id: number, suspended: boolean): 
 
 /** installation-deleted purge: cascades to repos, scans, findings, prs. */
 export async function deleteInstallation(id: number): Promise<void> {
+  // jobs have no FK to repos (payload carries repoId), so the cascade below
+  // would leave orphan queued jobs that retry 5x against a deleted repo.
+  // Delete them first, while the repo rows still exist to identify them.
+  await sql`
+    delete from jobs
+    where (payload->>'repoId')::bigint in (select id from repos where installation_id = ${id})`;
   await sql`delete from installations where id = ${id}`;
 }
 

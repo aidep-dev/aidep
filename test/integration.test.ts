@@ -18,7 +18,7 @@ import {
 import { migrate } from "../src/db/migrate.ts";
 import { setAppForTesting } from "../src/github/app.ts";
 import { registerHandlers } from "../src/github/handlers.ts";
-import { drain, enqueue } from "../src/jobs.ts";
+import { complete, drain, enqueue } from "../src/jobs.ts";
 import { runJob } from "../src/pipeline.ts";
 
 vi.hoisted(() => {
@@ -319,5 +319,58 @@ describe("cron drain route", () => {
     const res = await get("Bearer cron-secret-40");
     // enqueued nothing new; the drain ran the pre-existing queued job
     expect(await res.json()).toEqual({ enqueued: 0, registryTriggered: 0, ran: 1, failed: 0 });
+  });
+
+  it("does not enqueue when a scan job is already running for the repo", async () => {
+    await upsertInstallation(INST, "acme");
+    await upsertRepo({ id: REPO_STALE, installationId: INST, owner: "acme", name: "stale", defaultBranch: "main" });
+    await markOnboarded(REPO_STALE, DEFAULT_CONFIG);
+    await sql`insert into scans (repo_id, status, finished_at) values (${REPO_STALE}, 'done', now() - interval '25 hours')`;
+    // a scan is mid-run (claimed just now, so recovery leaves it alone)
+    await sql`
+      insert into jobs (type, payload, status, claimed_at)
+      values ('scan', jsonb_build_object('repoId', ${REPO_STALE}::bigint), 'running', now())`;
+
+    const res = await get("Bearer cron-secret-40");
+    // stale repo, but the running scan already covers it: enqueue nothing new
+    expect((await res.json()).enqueued).toBe(0);
+    expect(await sql`select 1 from jobs where type = 'scan'`).toHaveLength(1);
+  });
+
+  it("recovers jobs wedged in 'running' past the timeout, leaving recent ones", async () => {
+    // exhausted attempts + wedged past 15m -> failed (not re-run by the drain)
+    await sql`
+      insert into jobs (type, payload, status, attempts, claimed_at)
+      values ('scan', '{"repoId": 4099}'::jsonb, 'running', 5, now() - interval '20 minutes')`;
+    // attempts left + wedged, but run_after in the future so the drain skips it
+    // after recovery requeues it -> observably 'queued'
+    await sql`
+      insert into jobs (type, payload, status, attempts, claimed_at, run_after)
+      values ('scan', '{"repoId": 4097}'::jsonb, 'running', 1,
+              now() - interval '20 minutes', now() + interval '1 hour')`;
+    // recently claimed -> left running
+    await sql`
+      insert into jobs (type, payload, status, attempts, claimed_at)
+      values ('scan', '{"repoId": 4098}'::jsonb, 'running', 1, now())`;
+
+    const res = await get("Bearer cron-secret-40");
+    expect(res.status).toBe(200);
+
+    const status = async (repoId: number) =>
+      (await sql<{ status: string }[]>`select status from jobs where (payload->>'repoId') = ${String(repoId)}`)[0]
+        .status;
+    expect(await status(4099)).toBe("failed");
+    expect(await status(4097)).toBe("queued");
+    expect(await status(4098)).toBe("running");
+  });
+
+  it("complete clears a prior last_error", async () => {
+    const id = await enqueue("scan", { repoId: 4056 });
+    await sql`update jobs set status = 'running', last_error = 'boom' where id = ${id}`;
+    await complete(id);
+    const [j] = await sql<{ status: string; last_error: string | null }[]>`
+      select status, last_error from jobs where id = ${id}`;
+    expect(j.status).toBe("done");
+    expect(j.last_error).toBeNull();
   });
 });

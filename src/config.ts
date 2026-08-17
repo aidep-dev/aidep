@@ -4,7 +4,7 @@ import { z } from "zod";
 export const AidepConfigSchema = z
   .object({
     schedule: z.enum(["daily", "weekly"]).default("daily"),
-    ignore: z.array(z.string()).default([]),
+    ignore: z.array(z.string().max(200)).max(100).default([]),
     prCap: z.number().int().min(1).max(20).default(3),
     evals: z.boolean().default(false),
   })

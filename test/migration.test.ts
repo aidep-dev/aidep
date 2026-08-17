@@ -11,7 +11,7 @@ import {
   upsertRepo,
 } from "../src/db/index.ts";
 import { migrate } from "../src/db/migrate.ts";
-import { buildMigrationPr } from "../src/github/migration.ts";
+import { buildMigrationPr, replaceEvalSection } from "../src/github/migration.ts";
 import type { RepoTarget } from "../src/github/types.ts";
 import { runJob, setExtractionLlmForTesting } from "../src/pipeline.ts";
 import type { EventTransformResult } from "../src/transforms/types.ts";
@@ -31,6 +31,8 @@ const state = vi.hoisted(() => ({
   repoFiles: {} as Record<string, string>,
   branchFiles: {} as Record<string, string>,
   prBody: "",
+  /** state returned by GET pulls/{pull_number}; rerun no-ops unless "open" */
+  prState: "open",
   requests: [] as Array<{ route: string; params: Record<string, unknown> }>,
   puts: [] as Array<{ path: string; content: string; branch: string }>,
 }));
@@ -67,7 +69,7 @@ vi.mock("../src/github/octokit.ts", () => ({
         case "POST /repos/{owner}/{repo}/pulls":
           return { data: { number: 55 } };
         case "GET /repos/{owner}/{repo}/pulls/{pull_number}":
-          return { data: { number: params.pull_number, body: state.prBody } };
+          return { data: { number: params.pull_number, state: state.prState, body: state.prBody } };
         case "PATCH /repos/{owner}/{repo}/pulls/{pull_number}":
           return { data: {} };
         default:
@@ -143,6 +145,7 @@ beforeEach(async () => {
   state.repoFiles = {};
   state.branchFiles = {};
   state.prBody = "";
+  state.prState = "open";
   state.requests = [];
   state.puts = [];
 });
@@ -161,13 +164,16 @@ describe("create_migration_pr", () => {
 
     await job("create_migration_pr", { repoId: REPO_ASSISTANTS, registryId: ASSISTANTS });
 
-    // branch off the default head, id-slug name
+    // branch off the default head; provider-surface-slug name avoids collisions
     const [refCreate] = reqs("POST /repos/{owner}/{repo}/git/refs");
-    expect(refCreate.params).toMatchObject({ ref: "refs/heads/aidep/assistants-api", sha: "head-sha-50" });
+    expect(refCreate.params).toMatchObject({
+      ref: "refs/heads/aidep/openai-endpoint-assistants-api",
+      sha: "head-sha-50",
+    });
 
     // migrated files PUT on the branch
     const js = state.puts.find((p) => p.path === "src/assistant.js");
-    expect(js?.branch).toBe("aidep/assistants-api");
+    expect(js?.branch).toBe("aidep/openai-endpoint-assistants-api");
     expect(js?.content).toContain("responses.create");
     expect(js?.content).not.toContain("beta.assistants");
     const py = state.puts.find((p) => p.path === "src/assistant_flow.py");
@@ -177,7 +183,7 @@ describe("create_migration_pr", () => {
     // the PR itself
     const [prPost] = reqs("POST /repos/{owner}/{repo}/pulls");
     expect(prPost.params).toMatchObject({
-      head: "aidep/assistants-api",
+      head: "aidep/openai-endpoint-assistants-api",
       base: "main",
       title: "Migrate 2 OpenAI Assistants API calls before the Aug 26 shutdown",
     });
@@ -204,7 +210,7 @@ describe("create_migration_pr", () => {
       select * from prs where repo_id = ${REPO_ASSISTANTS}`;
     expect(pr).toMatchObject({
       number: 55,
-      branch: "aidep/assistants-api",
+      branch: "aidep/openai-endpoint-assistants-api",
       deprecation_event: ASSISTANTS,
       eval_status: "pending",
     });
@@ -324,6 +330,49 @@ describe("rerun_pr", () => {
     await job("rerun_pr", { repoId: REPO_RERUN, prNumber: 12 });
     expect(state.puts).toHaveLength(0);
   });
+
+  it("no-ops on a closed PR: no branch write, no body patch", async () => {
+    await seedRepo(REPO_RERUN);
+    const prId = await createPrRecord({
+      repoId: REPO_RERUN,
+      number: 13,
+      deprecationEvent: GPT5,
+      branch: "aidep/gpt-5-2025-08-07",
+    });
+    await seedFinding(REPO_RERUN, GPT5, "src/summarize.ts", { status: "pr_open", prId: Number(prId) });
+    state.repoFiles = { "src/summarize.ts": TS_SUMMARIZE };
+    state.prState = "closed";
+
+    await job("rerun_pr", { repoId: REPO_RERUN, prNumber: 13 });
+
+    expect(state.puts).toHaveLength(0);
+    expect(reqs("PATCH /repos/{owner}/{repo}/pulls/{pull_number}")).toHaveLength(0);
+    expect(reqs("POST /repos/{owner}/{repo}/git/refs")).toHaveLength(0);
+    // finding untouched
+    const [f] = await sql<Array<{ status: string }>>`select status from findings where repo_id = ${REPO_RERUN}`;
+    expect(f.status).toBe("pr_open");
+  });
+
+  it("links newly-appeared open findings for the event to the PR", async () => {
+    await seedRepo(REPO_RERUN);
+    const prId = await createPrRecord({
+      repoId: REPO_RERUN,
+      number: 14,
+      deprecationEvent: GPT5,
+      branch: "aidep/gpt-5-2025-08-07",
+    });
+    await seedFinding(REPO_RERUN, GPT5, "src/summarize.ts", { status: "pr_open", prId: Number(prId) });
+    // appeared since the PR was opened: still 'open', not linked
+    await seedFinding(REPO_RERUN, GPT5, "src/other.ts", { status: "open" });
+    state.repoFiles = { "src/summarize.ts": TS_SUMMARIZE, "src/other.ts": TS_SUMMARIZE };
+
+    await job("rerun_pr", { repoId: REPO_RERUN, prNumber: 14 });
+
+    const findings = await sql<Array<{ status: string; pr_id: number }>>`
+      select status, pr_id from findings where repo_id = ${REPO_RERUN}`;
+    expect(findings).toHaveLength(2);
+    expect(findings.every((f) => f.status === "pr_open" && Number(f.pr_id) === Number(prId))).toBe(true);
+  });
 });
 
 describe("ingest_eval_results", () => {
@@ -376,6 +425,48 @@ describe("ingest_eval_results", () => {
     expect(body).toContain("This PR replaces gpt-5-2025-08-07");
     expect(body).toContain("## Changes");
   });
+
+  it("skips results whose summary counts do not reconcile", async () => {
+    await seedRepo(REPO_INGEST);
+    await createPrRecord({
+      repoId: REPO_INGEST,
+      number: 42,
+      deprecationEvent: GPT5,
+      branch: "aidep/gpt-5-2025-08-07",
+      evalStatus: "pending",
+    });
+    // held + drifted + inconclusive = 1, but total says 5
+    state.branchFiles["evals/results.json"] = JSON.stringify({
+      judge: "anthropic:claude-sonnet-4-6",
+      summary: { held: 1, drifted: 0, inconclusive: 0, total: 5 },
+      cases: [{ description: "x", verdict: "held", details: "" }],
+    });
+    state.prBody = "## Eval\n\n**Eval: pending.**\n\n## Changes\n";
+
+    await job("ingest_eval_results", { repoId: REPO_INGEST, prNumber: null, branch: "aidep/gpt-5-2025-08-07" });
+
+    const [pr] = await sql<Array<{ eval_status: string }>>`select eval_status from prs where repo_id = ${REPO_INGEST}`;
+    expect(pr.eval_status).toBe("pending"); // verdict not overwritten
+    expect(reqs("PATCH /repos/{owner}/{repo}/pulls/{pull_number}")).toHaveLength(0);
+  });
+});
+
+describe("replaceEvalSection", () => {
+  it("appends the section when the body has no Eval heading, never dropping it", () => {
+    const body = "Summary line.\n\n## Changes\n\n| a |\n";
+    const out = replaceEvalSection(body, "## Eval\n\nresult here.\n\n");
+    expect(out).toContain("## Eval");
+    expect(out).toContain("result here.");
+    expect(out).toContain("## Changes"); // original body preserved
+  });
+
+  it("replaces an existing Eval section in place", () => {
+    const body = "S\n\n## Eval\n\nold.\n\n## Changes\n\nx\n";
+    const out = replaceEvalSection(body, "## Eval\n\nnew.\n\n");
+    expect(out).toContain("new.");
+    expect(out).not.toContain("old.");
+    expect(out).toContain("## Changes");
+  });
 });
 
 describe("buildMigrationPr", () => {
@@ -408,7 +499,7 @@ describe("buildMigrationPr", () => {
       now: "2026-08-16",
     });
     expect(built.title).toBe("Replace retired model claude-3-5-sonnet-20241022 with claude-sonnet-4-6");
-    expect(built.branch).toBe("aidep/claude-3-5-sonnet-20241022");
+    expect(built.branch).toBe("aidep/anthropic-model-claude-3-5-sonnet-20241022");
     expect(built.files.map((f) => f.path)).toEqual([
       "src/[evil]|path.py",
       "aidep/tool.mjs",

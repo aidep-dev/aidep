@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { sql, upsertInstallation, upsertRepo } from "../src/db/index.ts";
 import { migrate } from "../src/db/migrate.ts";
 import { SESSION_COOKIE, openSession, sealSession } from "../src/auth/session.ts";
-import { STATE_COOKIE } from "../src/auth/access.ts";
+import { STATE_COOKIE, cookieHeader } from "../src/auth/access.ts";
 
 // The migrate route imports the pipeline for its post-response drain; keep it
 // inert here (same seam as handlers.test.ts).
@@ -192,5 +192,76 @@ describe("interest route", () => {
       }),
     );
     expect(bad.status).toBe(400);
+  });
+
+  it("rejects an invalid email with 400", async () => {
+    const { POST } = await import("../app/api/interest/route.ts");
+    const res = await POST(
+      new Request("http://localhost/api/interest", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ source: "private-gate", email: "not-an-email" }),
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("throttles a duplicate signal within the window to one row", async () => {
+    const { POST } = await import("../app/api/interest/route.ts");
+    const send = () =>
+      POST(
+        new Request("http://localhost/api/interest", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ source: "landing-waitlist", email: INTEREST_EMAIL }),
+        }),
+      );
+    expect((await send()).status).toBe(200);
+    expect((await send()).status).toBe(200);
+    const rows = await sql`select 1 from interest where email = ${INTEREST_EMAIL}`;
+    expect(rows).toHaveLength(1);
+  });
+});
+
+describe("requireRepoAccess", () => {
+  it("re-checks GitHub every call; access revoked between calls is denied on the second", async () => {
+    const { requireRepoAccess } = await import("../src/auth/access.ts");
+    await upsertInstallation(INST_OK, "acme");
+    await upsertRepo({ id: REPO_PUBLIC, installationId: INST_OK, owner: "acme", name: "pub", defaultBranch: "main" });
+    const session = { login: "u7100", userId: 7100, token: "tok-7100" };
+
+    stubGithub([INST_OK]);
+    const first = await requireRepoAccess(session, REPO_PUBLIC);
+    expect(first.allowed).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    stubGithub([]); // installation access revoked at GitHub; fresh mock, count resets
+    const second = await requireRepoAccess(session, REPO_PUBLIC);
+    expect(second.allowed).toBe(false);
+    expect(fetch).toHaveBeenCalledTimes(1); // hit GitHub again, not a cached answer
+  });
+
+  it("rejects a non-positive-integer repoId without a GitHub call", async () => {
+    const { requireRepoAccess } = await import("../src/auth/access.ts");
+    stubGithub([INST_OK]);
+    const r = await requireRepoAccess({ login: "u", userId: 1, token: "t" }, Number("abc"));
+    expect(r).toEqual({ repo: null, allowed: false });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("cookieHeader Secure flag", () => {
+  it("adds Secure in production even when APP_URL is not https", () => {
+    // APP_URL is http://localhost:3000 in this suite, so only the prod guard can add Secure.
+    vi.stubEnv("NODE_ENV", "production");
+    try {
+      expect(cookieHeader("aidep_session", "v", 60)).toContain("; Secure");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("omits Secure on http outside production", () => {
+    expect(cookieHeader("aidep_session", "v", 60)).not.toContain("; Secure");
   });
 });

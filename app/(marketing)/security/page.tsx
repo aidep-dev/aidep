@@ -60,6 +60,12 @@ export default function SecurityPage() {
           identifier. Repo access uses GitHub&rsquo;s 1-hour installation tokens.
         </p>
         <p className="mt-3 max-w-xl leading-relaxed text-ink-secondary">
+          One exception, and only if you turn on evals: to draft the eval cases for a migration PR,
+          we send the affected files to Anthropic once each, using our own key, to extract the
+          prompts. The cases land in the PR for you to read before anything runs. Leave evals off
+          (the default) and your code never leaves the scan.
+        </p>
+        <p className="mt-3 max-w-xl leading-relaxed text-ink-secondary">
           Uninstalling the app purges all stored findings immediately.
         </p>
       </section>
@@ -67,8 +73,10 @@ export default function SecurityPage() {
       <section className="mt-12 border-t border-rule pt-6">
         <h2 className="text-2xl">Your keys</h2>
         <p className="mt-3 max-w-xl leading-relaxed text-ink-secondary">
-          Evals run in your CI with your keys. We never hold model API keys, and eval output stays
-          in your repo as a PR comment.
+          The eval runs happen in your CI with your keys. We never hold the keys that run your
+          prompts, and the held/drifted output stays in your repo as a PR comment. The one key we do
+          hold is our own Anthropic key, used only to draft eval cases from your code when you opt
+          in (see &ldquo;Your code&rdquo;).
         </p>
       </section>
 

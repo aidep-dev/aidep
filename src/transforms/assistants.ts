@@ -147,6 +147,10 @@ function collapse(s: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
 
+function reEscape(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 // ---------------------------------------------------------------------------
 // function segmentation
 
@@ -168,7 +172,7 @@ function indentOf(line: string): string {
 function pyFunctions(lines: string[]): FnRange[] {
   const out: FnRange[] = [];
   for (let i = 0; i < lines.length; i++) {
-    const m = /^(\s*)def\s+(\w+)\s*\(/.exec(lines[i]);
+    const m = /^(\s*)(?:async\s+)?def\s+(\w+)\s*\(/.exec(lines[i]);
     if (m === null) continue;
     const indent = m[1];
     let end = lines.length - 1;
@@ -182,6 +186,10 @@ function pyFunctions(lines: string[]): FnRange[] {
     }
     while (end > i && lines[end].trim() === "") end--;
     out.push({ header: i, start: i + 1, end, indent, name: m[2] });
+    // skip nested defs inside this body: they would otherwise be emitted as
+    // overlapping ranges and a nested dance would be matched (and rewritten)
+    // twice (mirror jsFunctions)
+    i = end;
   }
   return out;
 }
@@ -191,13 +199,28 @@ function findBlockEnd(lines: string[], startLine: number): number | null {
   let depth = 0;
   let started = false;
   let quote: string | null = null;
+  let inBlockComment = false;
   for (let i = startLine; i < lines.length; i++) {
     const line = lines[i];
     for (let j = 0; j < line.length; j++) {
       const ch = line[j];
+      if (inBlockComment) {
+        if (ch === "*" && line[j + 1] === "/") {
+          inBlockComment = false;
+          j++;
+        }
+        continue;
+      }
       if (quote !== null) {
         if (ch === "\\") j++;
         else if (ch === quote) quote = null;
+        continue;
+      }
+      // braces inside comments are not structure
+      if (ch === "/" && line[j + 1] === "/") break;
+      if (ch === "/" && line[j + 1] === "*") {
+        inBlockComment = true;
+        j++;
         continue;
       }
       if (ch === '"' || ch === "'" || ch === "`") {
@@ -294,6 +317,9 @@ interface Dance {
   thread: string;
   role: string;
   content: string;
+  /** py only: the dance calls were awaited (async def), so the emitted
+   * responses.create is awaited too. js always awaits. */
+  isAsync: boolean;
   patches: Op[];
 }
 
@@ -390,7 +416,7 @@ function recognizeDance(lines: string[], fn: FnRange, lang: Lang): DanceResult {
   const runMatch = RE_RUNS.exec(lines[runLine])!;
   const runPrefixRe =
     lang === "py"
-      ? /^\s*(?:(\w+)\s*=\s*)?$/
+      ? /^\s*(?:(\w+)\s*=\s*)?(?:await\s+)?$/
       : /^\s*(?:(?:const|let|var)\s+([\w$]+)\s*=\s*)?(?:await\s+)?$/;
   const runPrefix = runPrefixRe.exec(lines[runLine].slice(0, runMatch.index));
   if (runPrefix === null) return fail("runs.create is not a simple statement");
@@ -455,7 +481,7 @@ function recognizeDance(lines: string[], fn: FnRange, lang: Lang): DanceResult {
   const listLine = listHits[0];
   const listRe =
     lang === "py"
-      ? /^(\s*)(\w+)\s*=\s*([\w.]+)\.beta\.threads\.messages\.list\(/
+      ? /^(\s*)(\w+)\s*=\s*(?:await\s+)?([\w.]+)\.beta\.threads\.messages\.list\(/
       : /^(\s*)(?:const|let|var)\s+([\w$]+)\s*=\s*await\s+([\w.$]+)\.beta\.threads\.messages\.list\(/;
   const listMatch = listRe.exec(lines[listLine]);
   if (listMatch === null) return fail("messages.list result is not assigned to a variable");
@@ -478,30 +504,36 @@ function recognizeDance(lines: string[], fn: FnRange, lang: Lang): DanceResult {
     return fail("calls are not in the textbook order");
   }
 
-  // the guide's "grab latest message" idioms
-  const idioms: RegExp[] = [
-    new RegExp(String.raw`${msgVar}\.data\[0\]\.content\[0\]\.text\.value`, "g"),
+  // the guide's "grab latest message" idioms. The single-message access maps
+  // to the scalar response.output_text; the list comprehension returned a
+  // list, so it maps to [response.output_text] to keep the caller's type.
+  const idioms: Array<{ re: RegExp; replacement: string }> = [
+    {
+      re: new RegExp(String.raw`${msgVar}\.data\[0\]\.content\[0\]\.text\.value`, "g"),
+      replacement: "response.output_text",
+    },
   ];
   if (lang === "py") {
-    idioms.push(
-      new RegExp(
+    idioms.push({
+      re: new RegExp(
         String.raw`\[\s*(\w+)\.content\[0\]\.text\.value\s+for\s+\1\s+in\s+${msgVar}\.data\s*\]`,
         "g",
       ),
-    );
+      replacement: "[response.output_text]",
+    });
   }
+  const applyIdioms = (s: string): string =>
+    idioms.reduce((acc, idiom) => {
+      idiom.re.lastIndex = 0;
+      return acc.replace(idiom.re, idiom.replacement);
+    }, s);
   const patches: Op[] = [];
   for (let i = from; i <= to; i++) {
     if (inSpan(i, spans)) continue;
-    for (const re of idioms) {
-      re.lastIndex = 0;
-      if (re.test(lines[i])) {
-        const idiom = re;
-        patches.push({
-          kind: "patch",
-          line: i,
-          apply: (s) => s.replace(idiom, "response.output_text"),
-        });
+    for (const idiom of idioms) {
+      idiom.re.lastIndex = 0;
+      if (idiom.re.test(lines[i])) {
+        patches.push({ kind: "patch", line: i, apply: applyIdioms });
         break;
       }
     }
@@ -513,12 +545,7 @@ function recognizeDance(lines: string[], fn: FnRange, lang: Lang): DanceResult {
   const patchedLines = new Set(patches.map((p) => (p.kind === "patch" ? p.line : -1)));
   for (let i = from; i <= to; i++) {
     if (inSpan(i, spans)) continue;
-    const text = patchedLines.has(i)
-      ? idioms.reduce((s, re) => {
-          re.lastIndex = 0;
-          return s.replace(re, "response.output_text");
-        }, lines[i])
-      : lines[i];
+    const text = patchedLines.has(i) ? applyIdioms(lines[i]) : lines[i];
     for (const re of leftoverRes) {
       if (re.test(text)) return fail("run/messages result is used beyond the recognized idiom");
     }
@@ -539,6 +566,7 @@ function recognizeDance(lines: string[], fn: FnRange, lang: Lang): DanceResult {
       thread,
       role,
       content,
+      isAsync: lang === "py" && mcPrefixText === "await",
       patches,
     },
   };
@@ -554,7 +582,8 @@ function danceOps(d: Dance, lang: Lang, lifted: LiftedConfig | null): Op[] {
   const ind = d.indent;
   const block: string[] = [];
   if (lang === "py") {
-    block.push(`${ind}response = ${d.prefix}.responses.create(`);
+    const awaitKw = d.isAsync ? "await " : "";
+    block.push(`${ind}response = ${awaitKw}${d.prefix}.responses.create(`);
     if (lifted !== null) {
       block.push(`${ind}    model=${lifted.model},`);
       if (lifted.instructions !== null) block.push(`${ind}    instructions=${lifted.instructions},`);
@@ -711,10 +740,18 @@ function removeCreateOps(
   lang: Lang,
 ): { ops: Op[]; removedFn: string | null } {
   const fn = fns.find((f) => f.header <= span.start && f.end >= span.end);
-  if (fn !== undefined && varName !== null) {
+  // boundary that treats `$` as part of the identifier, so a "$foo" var is
+  // detected (a bare \b misses the "$")
+  const usesVar =
+    varName === null
+      ? null
+      : new RegExp(String.raw`(?<![A-Za-z0-9_$])${reEscape(varName)}(?![A-Za-z0-9_$])`);
+  if (fn !== undefined && varName !== null && usesVar !== null) {
     const bodyFrom = lang === "py" ? fn.start : fn.start + 1;
     const bodyTo = lang === "py" ? fn.end : fn.end - 1;
-    const returnRe = new RegExp(String.raw`^\s*return\s+(?:await\s+)?${varName}(?:\.id)?\s*;?\s*$`);
+    const returnRe = new RegExp(
+      String.raw`^\s*return\s+(?:await\s+)?${reEscape(varName)}(?:\.id)?\s*;?\s*$`,
+    );
     let onlyReturn = true;
     for (let i = bodyFrom; i <= bodyTo; i++) {
       if (i >= span.start && i <= span.end) continue;
@@ -729,6 +766,17 @@ function removeCreateOps(
         ops: [{ kind: "delete", start: fn.header, end: fn.end, collapseBlank: true }],
         removedFn: fn.name,
       };
+    }
+  }
+  // bare-span delete: only safe if the created var is used nowhere else.
+  // Otherwise deleting just the create statement orphans db.save(x.id),
+  // console.log(x.id), etc. -> leave the call in place (no ops).
+  if (usesVar !== null) {
+    const scanFrom = fn !== undefined ? (lang === "py" ? fn.start : fn.start + 1) : 0;
+    const scanTo = fn !== undefined ? (lang === "py" ? fn.end : fn.end - 1) : lines.length - 1;
+    for (let i = scanFrom; i <= scanTo; i++) {
+      if (i >= span.start && i <= span.end) continue;
+      if (usesVar.test(lines[i])) return { ops: [], removedFn: null };
     }
   }
   return { ops: [{ kind: "delete", start: span.start, end: span.end, collapseBlank: true }], removedFn: null };
@@ -803,24 +851,10 @@ function transformFile(file: EventFileInput): {
   let lines = file.content.split("\n");
   const applied: AppliedChange[] = [];
 
-  // (a) threads.create -> conversations.create; metadata args pass through 1:1
-  const renameRe = /\b([\w.$]+)\.beta\.threads\.create\(/g;
-  let renamed = false;
-  lines = lines.map((l) => {
-    if (!/\.beta\.threads\.create\(/.test(l)) return l;
-    renamed = true;
-    return l.replace(renameRe, "$1.conversations.create(");
-  });
-  if (renamed) {
-    applied.push({
-      kind: "rename-threads-create",
-      description: `renamed beta.threads.create to conversations.create in ${file.path}`,
-    });
-  }
-
-  // (b) recognize the 4-call dance per function
+  // (a) recognize the 4-call dance per function
   const fns = lang === "py" ? pyFunctions(lines) : jsFunctions(lines);
   const dances: Dance[] = [];
+  const danceFns: FnRange[] = [];
   for (const fn of fns) {
     const rec = recognizeDance(lines, fn, lang);
     if (rec === null) continue;
@@ -832,6 +866,7 @@ function transformFile(file: EventFileInput): {
       continue;
     }
     dances.push(rec.dance);
+    danceFns.push(fn);
   }
   // run calls outside any recognized function body are never rewritten
   const fnSpans: Array<Span | null> = fns.map((f) => ({ start: f.header, end: f.end }));
@@ -846,6 +881,26 @@ function transformFile(file: EventFileInput): {
     }
   }
 
+  // (b) threads.create -> conversations.create, but only inside a function
+  // whose dance we recognized. An unrecognized file stays byte-identical and
+  // degrades purely to the checklist, never a broken hybrid that calls
+  // conversations.create while still running the old messages/runs loop.
+  const renameRe = /\b([\w.$]+)\.beta\.threads\.create\(/g;
+  const danceSpans: Array<Span | null> = danceFns.map((f) => ({ start: f.header, end: f.end }));
+  let renamed = false;
+  for (let i = 0; i < lines.length; i++) {
+    if (!inSpan(i, danceSpans)) continue;
+    if (!/\.beta\.threads\.create\(/.test(lines[i])) continue;
+    lines[i] = lines[i].replace(renameRe, "$1.conversations.create(");
+    renamed = true;
+  }
+  if (renamed) {
+    applied.push({
+      kind: "rename-threads-create",
+      description: `renamed beta.threads.create to conversations.create in ${file.path}`,
+    });
+  }
+
   // (c) in-code assistants.create: lift into the single recognized dance
   const create = findAssistantsCreate(lines, lang);
   let lifted: LiftedConfig | null = null;
@@ -853,15 +908,24 @@ function transformFile(file: EventFileInput): {
   let removedFn: string | null = null;
   if (create !== null) {
     if (create.lifted !== null && create.span !== null && dances.length === 1) {
+      // inline the config into the single responses.create either way
       lifted = create.lifted;
       const removal = removeCreateOps(lines, fns, create.span, create.varName, lang);
       createOps = removal.ops;
       removedFn = removal.removedFn;
+      if (createOps.length === 0) {
+        // the created var is used elsewhere, so the call cannot be removed
+        // without orphaning those uses; keep it, just flag the duplication
+        ft.checklist.push({
+          id: "assistants-inline-partial",
+          text: `assistants.create in ${mdEscape(file.path)} was left in place because its id is used elsewhere in the file; its config is now also inlined in the responses.create call, so remove the old assistants.create once its other uses are migrated.`,
+        });
+      }
     } else {
       const reason = create.reason ?? "no single recognized responses.create rewrite to inline into";
       ft.checklist.push({
         id: "assistants-inline-partial",
-        text: `assistants.create in ${mdEscape(file.path)} was not auto-inlined (${reason}); move its config into the new responses.create call manually.`,
+        text: `assistants.create in ${mdEscape(file.path)} was not auto-inlined (${mdEscape(reason)}); move its config into the new responses.create call manually.`,
       });
     }
   }

@@ -1,6 +1,6 @@
-import { createHash } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { sql } from "../../../../src/db/index.ts";
-import { drain } from "../../../../src/jobs.ts";
+import { drain, MAX_ATTEMPTS } from "../../../../src/jobs.ts";
 import { runJob } from "../../../../src/pipeline.ts";
 import { loadRegistry } from "../../../../src/registry.ts";
 
@@ -36,6 +36,13 @@ async function rescanOnRegistryChange(): Promise<number> {
   return enqueued.length;
 }
 
+/** Constant-time bearer-token check that never throws on a length mismatch. */
+function bearerMatches(header: string | null, secret: string): boolean {
+  const expected = Buffer.from(`Bearer ${secret}`);
+  const got = Buffer.from(header ?? "");
+  return got.length === expected.length && timingSafeEqual(got, expected);
+}
+
 /**
  * Vercel cron target (see vercel.json): enqueue scheduled rescans for stale
  * repos, then drain the job queue.
@@ -44,14 +51,24 @@ export async function GET(req: Request): Promise<Response> {
   const secret = process.env.CRON_SECRET;
   if (secret) {
     // Vercel cron sends "Authorization: Bearer $CRON_SECRET" automatically
-    // whenever the env var exists on the project.
-    if (req.headers.get("authorization") !== `Bearer ${secret}`) {
+    // whenever the env var exists on the project. Constant-time compare.
+    if (!bearerMatches(req.headers.get("authorization"), secret)) {
       return new Response("unauthorized", { status: 401 });
     }
   } else if (process.env.NODE_ENV !== "development") {
     // No secret configured: only local development may drain unauthenticated.
     return new Response("unauthorized", { status: 401 });
   }
+
+  // Recover jobs wedged in 'running' by a crash between claim and
+  // complete/fail: requeue them so the queue drains and the scan debounce
+  // stops treating them as pending, or fail them once attempts are spent so a
+  // permanently-broken job isn't re-run every cron. 15m sits comfortably above
+  // the serverless maxDuration, so a still-running job is never touched.
+  await sql`
+    update jobs
+    set status = case when attempts >= ${MAX_ATTEMPTS} then 'failed' else 'queued' end
+    where status = 'running' and claimed_at < now() - interval '15 minutes'`;
 
   // Scheduled rescans: onboarded, unsuspended repos whose most recent finished
   // scan is older than their schedule (daily = 24h, weekly = 7d; default
@@ -67,7 +84,7 @@ export async function GET(req: Request): Promise<Response> {
       from scans where status = 'done'
       group by repo_id
     ) ls on ls.repo_id = r.id
-    left join jobs j on j.type = 'scan' and j.status = 'queued'
+    left join jobs j on j.type = 'scan' and j.status in ('queued', 'running')
       and (j.payload->>'repoId')::bigint = r.id
     where r.onboarded_at is not null
       and i.suspended_at is null

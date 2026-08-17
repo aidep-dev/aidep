@@ -14,7 +14,9 @@ export const RegistryRowSchema = z.object({
   dies_is_earliest_possible: z.boolean(),
   replacement_id: z.string().nullable(),
   replacement_notes: z.string().nullable(),
-  migration_url: z.url().nullable(),
+  // https only: a dashboard renders this as an href, so a javascript:/http url
+  // has no business here. All current registry values are https.
+  migration_url: z.url().refine((u) => u.startsWith("https://"), "must be https").nullable(),
   source_url: z.url(),
   verified_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   platform: z.literal("first-party"),

@@ -484,6 +484,21 @@ export async function rerunPr(repoId: number, prNumber: number): Promise<void> {
   }
   const config = repo.config ?? DEFAULT_CONFIG;
   const octokit = await installationOctokit(repo.installation_id);
+
+  // No-op on a non-open PR: a rerun-box tick can arrive on a closed or merged
+  // PR (GitHub still fires pull_request.edited). Don't recreate a deleted
+  // branch or push commits onto a closed/merged PR.
+  const prState = await octokit.request("GET /repos/{owner}/{repo}/pulls/{pull_number}", {
+    owner: repo.owner,
+    repo: repo.name,
+    pull_number: prNumber,
+  });
+  const { state, merged } = prState.data as { state?: string; merged?: boolean };
+  if (state !== "open" || merged === true) {
+    console.log(`rerun_pr: PR #${prNumber} on repo ${repoId} is ${merged ? "merged" : state}, skipping`);
+    return;
+  }
+
   const build = await buildMigrationForEvent(octokit, repo, config, pr.deprecation_event, [
     "open",
     "pr_open",
@@ -496,6 +511,9 @@ export async function rerunPr(repoId: number, prNumber: number): Promise<void> {
   await ensureBranch(octokit, target, pr.branch);
   await putFilesOnBranch(octokit, target, pr.branch, build.built.files);
   await patchPrBody(octokit, target, pr.number, build.built.body);
+  // findings that appeared for this event since the PR was opened are now
+  // covered by the refreshed PR; link them so prCap and the dashboard match.
+  await markFindingsPrOpen(repoId, pr.deprecation_event, Number(pr.id));
 }
 
 /** Shape of evals/results.json, written by the customer's CI; hostile input. */
@@ -571,6 +589,13 @@ export async function ingestEvalResults(repoId: number, branch: string): Promise
     return;
   }
   const results: EvalResults = check.data;
+  const s = results.summary;
+  if (s.held + s.drifted + s.inconclusive !== s.total) {
+    // counts that don't reconcile mean a broken/partial run; don't render a
+    // misleading verdict onto the PR.
+    console.log(`ingest_eval_results: results.json on ${branch} summary counts do not reconcile, skipping`);
+    return;
+  }
 
   await setPrEval(repoId, pr.number, evalVerdict(results.summary), results.summary);
 
