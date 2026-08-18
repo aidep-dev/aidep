@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { sql } from "../../../../src/db/index.ts";
 import { drain, MAX_ATTEMPTS } from "../../../../src/jobs.ts";
 import { runJob } from "../../../../src/pipeline.ts";
+import { refreshExposure } from "../../../../src/exposure.ts";
 import { loadRegistry } from "../../../../src/registry.ts";
 
 /**
@@ -96,6 +97,19 @@ export async function GET(req: Request): Promise<Response> {
 
   const registryTriggered = await rescanOnRegistryChange();
 
+  // Public exposure counts for /dead, refreshed at most daily. Code search is
+  // 10 req/min, so this walks a bounded slice and spaces its calls; a failed
+  // request leaves the previous number standing rather than writing a zero.
+  let exposure = { updated: 0, skipped: 0 };
+  const ghToken = process.env.GITHUB_SEARCH_TOKEN;
+  if (ghToken) {
+    const [last] = await sql<{ counted_at: string }[]>`
+      select max(counted_at) as counted_at from exposure_counts`;
+    const stale =
+      !last?.counted_at || Date.now() - new Date(last.counted_at).getTime() > 20 * 60 * 60 * 1000;
+    if (stale) exposure = await refreshExposure({ token: ghToken });
+  }
+
   const r = await drain(runJob, { max: 25 });
-  return Response.json({ enqueued: enqueued.length, registryTriggered, ...r });
+  return Response.json({ enqueued: enqueued.length, registryTriggered, exposure, ...r });
 }

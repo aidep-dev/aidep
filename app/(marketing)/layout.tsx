@@ -9,6 +9,9 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
             aidep
           </Link>
           <nav className="flex items-baseline gap-6 text-sm">
+            <Link href="/dead" className="text-ink-secondary hover:text-ink">
+              What is dead
+            </Link>
             <Link href="/security" className="text-ink-secondary hover:text-ink">
               Security
             </Link>

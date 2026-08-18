@@ -81,6 +81,16 @@ create table if not exists meta (
   value text not null
 );
 
+-- Public exposure counts for the /dead page. GitHub code search allows 10
+-- requests/minute, so a daily job snapshots them and the page renders the
+-- snapshot with its timestamp. Never queried at request time.
+create table if not exists exposure_counts (
+  registry_id text primary key,
+  query text not null,
+  files int not null,
+  counted_at timestamptz not null default now()
+);
+
 create table if not exists jobs (
   id bigserial primary key,
   type text not null,

@@ -87,10 +87,13 @@ export default async function LandingPage() {
             </a>
           )}
           <Link
-            href="/security"
+            href="/dead"
             className="inline-block border border-rule px-5 py-2.5 text-sm text-ink-secondary hover:border-ink-muted hover:text-ink"
           >
-            Read the security page
+            See what is already dead
+          </Link>
+          <Link href="/security" className="text-sm text-link underline underline-offset-4">
+            Security
           </Link>
         </div>
       </section>
