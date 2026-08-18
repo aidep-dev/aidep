@@ -110,9 +110,9 @@ describe("refreshExposure", () => {
       new Response(JSON.stringify({ total_count: 4321 }))) as unknown as typeof fetch;
     const r = await refreshExposure({ ...opts, fetchImpl });
     expect(r).toEqual({ updated: 2, skipped: 0 });
-    const stored = (await listExposure()).filter((x) => x.registry_id.startsWith("test:"));
+    const stored = (await listExposure(1000)).filter((x) => x.registry_id.startsWith("test:"));
     expect(stored).toHaveLength(2);
-    expect(stored[0].files).toBe(4321);
+    expect(stored.every((x) => x.files === 4321)).toBe(true);
   });
 
   it("skips an implausible count rather than publishing a substring artifact", async () => {
@@ -122,7 +122,7 @@ describe("refreshExposure", () => {
       )) as unknown as typeof fetch;
     const r = await refreshExposure({ ...opts, fetchImpl });
     expect(r).toEqual({ updated: 0, skipped: 2 });
-    expect((await listExposure()).filter((x) => x.registry_id.startsWith("test:"))).toHaveLength(0);
+    expect((await listExposure(1000)).filter((x) => x.registry_id.startsWith("test:"))).toHaveLength(0);
   });
 
   it("leaves the previous number standing when a request fails", async () => {
@@ -134,7 +134,7 @@ describe("refreshExposure", () => {
     expect(r).toEqual({ updated: 0, skipped: 2 });
     // a failed request must never be written as zero: zero reads as "nobody
     // is exposed", the opposite of what a failure means
-    const stored = (await listExposure()).filter((x) => x.registry_id.startsWith("test:"));
+    const stored = (await listExposure(1000)).filter((x) => x.registry_id.startsWith("test:"));
     expect(stored.every((x) => x.files === 100)).toBe(true);
   });
 

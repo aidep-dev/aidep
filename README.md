@@ -53,6 +53,10 @@ The onboarding PR is the whole first act: merge it to activate, close it to decl
 
 The app is a standard Next.js deployment (built with `--webpack`) plus a Postgres. `vercel.json` ships a 10-minute cron hitting `/api/cron/drain` (set `CRON_SECRET`). Set `REGISTRY_SOURCE` to a raw URL serving the registry JSON, e.g. `https://raw.githubusercontent.com/<you>/aidep-registry/main/registry`. The registry repo needs no deployment: its daily GitHub Actions cron (`.github/workflows/poll.yml`) opens a review PR against itself when a provider page changes; merging the PR is the approval step.
 
+Two things worth knowing before you pick hosts. Vercel's Hobby plan is non-commercial only, so charging anyone means Pro. And Vercel Postgres no longer exists (those databases moved to Neon in Dec 2024); a findings-only store is tiny, but Neon's free tier autosuspends in a way that does not suit webhook traffic, so Supabase Free is the easier default.
+
+Set `GITHUB_SEARCH_TOKEN` to a token with public read access if you want the `/dead` page to fill in. It drives a daily code-search snapshot of public exposure counts; leave it unset and the page simply stays empty.
+
 ## What it stores
 
 Findings only: file path, line number, matched identifier, registry row. Repo tarballs are scanned in memory and discarded; source text is never persisted. Uninstalling the App deletes everything for that installation immediately. Details on `/security`.
