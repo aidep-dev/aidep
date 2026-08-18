@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { loadLocalDir } from "../src/scanner/local.ts";
@@ -32,21 +33,21 @@ describe("fixture-repo", async () => {
       ".env.example": ["2:ASSISTANT_ID env var", "2:asst_ id literal"],
       ".github/workflows/nightly.yml": ["16:gemini-2.0-flash-001"],
       "src/assistant.js": [
-        "6:openai.beta.assistants",
+        "6:.beta.assistants",
         "7:gpt-4-turbo",
-        "18:openai.beta.threads",
+        "18:.beta.threads",
+        "22:.beta.threads",
         "22:createAndPoll",
-        "22:openai.beta.threads",
-        "25:openai.beta.threads",
+        "25:.beta.threads",
       ],
       "src/assistant_flow.py": [
         "9:ASSISTANT_ID env var",
-        "13:client.beta.threads",
-        "14:client.beta.threads",
-        "17:client.beta.threads",
+        "13:.beta.threads",
+        "14:.beta.threads",
+        "17:.beta.threads",
         "18:ASSISTANT_ID env var",
-        "22:client.beta.threads",
-        "23:client.beta.threads",
+        "22:.beta.threads",
+        "23:.beta.threads",
         "29:/v1/assistants",
         "32:OpenAI-Beta: assistants header",
       ],
@@ -121,5 +122,50 @@ describe("boundary rule", () => {
     );
     expect(result.findings).toHaveLength(1);
     expect(result.findings[0].matched).toBe("gpt-4-turbo");
+  });
+});
+
+describe("real-world regression: receiver naming", () => {
+  // ComposioHQ/composio python/providers/openai/openai_assistant_demo.py at
+  // 03429c74, the file a human migrated by hand in PR #4165 on 2026-08-18.
+  // aidep originally found ZERO exposures here because the client variable is
+  // named `openai_client`, and the matchers required the receiver to be
+  // literally `client` or `openai`. Caught by diffing against that migration.
+  const composio = readFileSync(
+    fileURLToPath(new URL("./fixtures/real-world/composio-assistant-demo.py", import.meta.url)),
+    "utf8",
+  );
+
+  it("finds the Assistants calls regardless of what the client is named", () => {
+    const found = scanFiles([{ path: "demo.py", text: composio }], MINI_REGISTRY);
+    expect(found.findings.length).toBeGreaterThan(0);
+    expect(found.findings.some((f) => f.matched === ".beta.assistants")).toBe(true);
+    expect(found.findings.some((f) => f.matched === ".beta.threads")).toBe(true);
+  });
+
+  it("matches every receiver shape real code uses", () => {
+    for (const line of [
+      "client.beta.assistants.create()",
+      "openai.beta.threads.create()",
+      "openai_client.beta.assistants.create()",
+      "self.client.beta.threads.create()",
+      "oai.beta.threads.create()",
+      "_client.beta.threads.create()",
+      "this.openai.beta.threads.messages.create()",
+    ]) {
+      const n = scanFiles([{ path: "x.py", text: line }], MINI_REGISTRY).findings.length;
+      expect(n, line).toBeGreaterThan(0);
+    }
+  });
+
+  it("still ignores prose and unrelated beta namespaces", () => {
+    for (const line of [
+      "# beta.assistants is gone",
+      "client.beta.chat.completions.create()",
+      "const beta = { threads: 1 }",
+    ]) {
+      const n = scanFiles([{ path: "x.py", text: line }], MINI_REGISTRY).findings.length;
+      expect(n, line).toBe(0);
+    }
   });
 });

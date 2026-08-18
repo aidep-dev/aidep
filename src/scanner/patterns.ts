@@ -33,10 +33,14 @@ const ASSISTANTS_ROW_ID = "openai:endpoint:assistants-api";
 
 function assistantsMatchers(row: RegistryRow): Matcher[] {
   const defs: Array<[RegExp, string]> = [
-    [/\bclient\.beta\.assistants\b/, "client.beta.assistants"],
-    [/\bclient\.beta\.threads\b/, "client.beta.threads"],
-    [/\bopenai\.beta\.assistants\b/, "openai.beta.assistants"],
-    [/\bopenai\.beta\.threads\b/, "openai.beta.threads"],
+    // Match on the distinctive `.beta.assistants` / `.beta.threads` tail and
+    // accept ANY receiver. Real code names the client whatever it likes:
+    // `openai_client` (the name in OpenAI's own examples), `oai`, `_client`,
+    // `self.client`. Requiring the receiver to be literally `client` or
+    // `openai` missed a live Assistants call in ComposioHQ/composio, found
+    // 2026-08-18 by diffing against a human migration of that same file.
+    [/\.beta\.assistants\b/, ".beta.assistants"],
+    [/\.beta\.threads\b/, ".beta.threads"],
     [/\bcreate_and_poll\b/, "create_and_poll"],
     [/\bcreateAndPoll\b/, "createAndPoll"],
     [/\bsubmit_tool_outputs\b/, "submit_tool_outputs"],

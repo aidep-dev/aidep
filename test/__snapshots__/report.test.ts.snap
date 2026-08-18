@@ -39,18 +39,18 @@ Migration guide: https://platform.openai.com/docs/assistants/migration
 | --- | --- | --- |
 | .env.example | 2 | asst_ id literal |
 | .env.example | 2 | ASSISTANT_ID env var |
-| src/assistant.js | 6 | openai.beta.assistants |
-| src/assistant.js | 18 | openai.beta.threads |
-| src/assistant.js | 22 | openai.beta.threads |
+| src/assistant.js | 6 | .beta.assistants |
+| src/assistant.js | 18 | .beta.threads |
+| src/assistant.js | 22 | .beta.threads |
 | src/assistant.js | 22 | createAndPoll |
-| src/assistant.js | 25 | openai.beta.threads |
+| src/assistant.js | 25 | .beta.threads |
 | src/assistant_flow.py | 9 | ASSISTANT_ID env var |
-| src/assistant_flow.py | 13 | client.beta.threads |
-| src/assistant_flow.py | 14 | client.beta.threads |
-| src/assistant_flow.py | 17 | client.beta.threads |
+| src/assistant_flow.py | 13 | .beta.threads |
+| src/assistant_flow.py | 14 | .beta.threads |
+| src/assistant_flow.py | 17 | .beta.threads |
 | src/assistant_flow.py | 18 | ASSISTANT_ID env var |
-| src/assistant_flow.py | 22 | client.beta.threads |
-| src/assistant_flow.py | 23 | client.beta.threads |
+| src/assistant_flow.py | 22 | .beta.threads |
+| src/assistant_flow.py | 23 | .beta.threads |
 | src/assistant_flow.py | 29 | /v1/assistants |
 | src/assistant_flow.py | 32 | OpenAI-Beta: assistants header |
 
