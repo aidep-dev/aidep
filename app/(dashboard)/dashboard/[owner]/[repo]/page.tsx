@@ -171,11 +171,7 @@ export default async function RepoPage({
                     PR #{g.pr.number} open · eval: {g.pr.evalStatus}
                   </a>
                 ) : (
-                  <CreatePrButton
-                    repoId={Number(row.id)}
-                    registryId={g.registryId}
-                    repoFullName={fullName}
-                  />
+                  <CreatePrButton repoId={Number(row.id)} registryId={g.registryId} />
                 )}
               </div>
             </section>

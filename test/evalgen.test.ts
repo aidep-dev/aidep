@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
-import { extractCases } from "../src/evalgen/extract.ts";
+import { extractCases, MAX_FILES_PER_EXTRACTION } from "../src/evalgen/extract.ts";
 import { generateEvalPack } from "../src/evalgen/pack.ts";
 import type { EvalPackInput, Llm } from "../src/evalgen/types.ts";
 
@@ -293,5 +293,39 @@ describe("runtime scripts", () => {
       { description: "rank items [1]", verdict: "drifted", details: "failed: similar" },
       { description: "rank items [2]", verdict: "inconclusive", details: "provider timeout" },
     ]);
+  });
+});
+
+describe("extraction file cap", () => {
+  it("stops calling the llm past the file cap", async () => {
+    let calls = 0;
+    const llm = async () => {
+      calls++;
+      return JSON.stringify([
+        { description: `case ${calls}`, prompt: "p {{x}}", vars: [{ x: "v" }], checks: {} },
+      ]);
+    };
+    const files = Array.from({ length: 60 }, (_, i) => ({
+      path: `src/f${i}.ts`,
+      content: "client.messages.create({})",
+    }));
+    // cap high enough that the FILE cap is what binds, not the case cap
+    const cases = await extractCases(files, llm, { cap: 500, fileCap: 5 });
+    expect(calls).toBe(5);
+    expect(cases).toHaveLength(5);
+  });
+
+  it("defaults the file cap to MAX_FILES_PER_EXTRACTION", async () => {
+    let calls = 0;
+    const llm = async () => {
+      calls++;
+      return "[]";
+    };
+    const files = Array.from({ length: 200 }, (_, i) => ({
+      path: `src/f${i}.ts`,
+      content: "client.messages.create({})",
+    }));
+    await extractCases(files, llm, { cap: 500 });
+    expect(calls).toBe(MAX_FILES_PER_EXTRACTION);
   });
 });

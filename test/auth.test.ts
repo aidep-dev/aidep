@@ -143,13 +143,19 @@ describe("migrate route", () => {
     expect((await post(REPO_FOREIGN, sessionCookie(7003))).status).toBe(403);
   });
 
-  it("402 on a private repo whose installation is unpaid", async () => {
+  it("migration PRs are free on a private repo whose installation is unpaid", async () => {
+    // The paid line is the eval pack (gated in evalPackFor), never the PR.
     await upsertInstallation(INST_UNPAID, "acme"); // paid defaults to false
     await upsertRepo({ id: REPO_PRIVATE, installationId: INST_UNPAID, owner: "acme", name: "priv", defaultBranch: "main", private: true });
     stubGithub([INST_UNPAID]);
     const res = await post(REPO_PRIVATE, sessionCookie(7002));
-    expect(res.status).toBe(402);
-    expect(await res.json()).toMatchObject({ error: "paid" });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ enqueued: true });
+    const jobs = await sql`
+      select 1 from jobs
+      where type = 'create_migration_pr' and status = 'queued'
+        and (payload->>'repoId')::bigint = ${REPO_PRIVATE}`;
+    expect(jobs).toHaveLength(1);
   });
 
   it("200 on a public repo enqueues create_migration_pr", async () => {

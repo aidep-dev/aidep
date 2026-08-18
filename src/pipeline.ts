@@ -276,9 +276,11 @@ interface EvalPlan {
   skipReason: string | null;
   pair: { old: string; new: string } | null;
   note: string | null;
+  /** the judge the pack pins, so the PR body names the same one */
+  judge: string | null;
 }
 
-const NO_EVAL: Omit<EvalPlan, "skipReason"> = { pack: null, pair: null, note: null };
+const NO_EVAL: Omit<EvalPlan, "skipReason"> = { pack: null, pair: null, note: null, judge: null };
 
 /** The eval pack for one event, or the honest reason there is none. */
 async function evalPackFor(
@@ -286,8 +288,22 @@ async function evalPackFor(
   config: AidepConfig,
   files: EventFileInput[],
   rows: RegistryRow[],
+  installationId: number,
 ): Promise<EvalPlan> {
   if (config.evals !== true) return { ...NO_EVAL, skipReason: null };
+
+  // The eval pack is the paid line (aidep Proof). Everything else, including
+  // this migration PR, is free on every repo. The PR still ships; it just
+  // says why there is no proof attached.
+  const [inst] = await sql<{ paid: boolean }[]>`
+    select paid from installations where id = ${installationId}`;
+  if (!inst?.paid) {
+    return {
+      ...NO_EVAL,
+      skipReason:
+        "eval packs are on aidep Proof. The migration is here either way; Proof adds the before/after run in your own CI that shows whether behavior held.",
+    };
+  }
 
   // What the pack compares depends on the event:
   //  - model swap: old model vs replacement, same API
@@ -354,16 +370,20 @@ async function evalPackFor(
   const kept = [...byTemplate.values()].sort((a, b) => b.length - a.length)[0];
   const dropped = cases.length - kept.length;
 
+  // registry-aware: never pin a judge the registry already knows is dying
+  const judge = judgeProviderFor(event.provider, rows);
+
   return {
     pack: generateEvalPack({
       oldModelId: modelPairLabel.old,
       newModelId: modelPairLabel.new,
       oldProvider: pair.old,
       newProvider: pair.new,
-      judgeProvider: judgeProviderFor(event.provider),
+      judgeProvider: judge,
       cases: kept,
     }),
     skipReason: null,
+    judge,
     pair: displayPair,
     note:
       dropped === 0
@@ -405,7 +425,13 @@ async function buildMigrationForEvent(
   }
   const files = await fetchEventFiles(octokit, repo, paths);
   const result = transformForEvent(event, files, rows);
-  const { pack, skipReason, pair, note } = await evalPackFor(event, config, files, rows);
+  const { pack, skipReason, pair, note, judge } = await evalPackFor(
+    event,
+    config,
+    files,
+    rows,
+    repo.installation_id,
+  );
   const built = buildMigrationPr({
     repo: targetOf(repo),
     event,
@@ -414,6 +440,7 @@ async function buildMigrationForEvent(
     evalSkipReason: skipReason,
     evalPair: pair,
     evalNote: note,
+    judgeProvider: judge,
     now: new Date().toISOString().slice(0, 10),
   });
   return { event, built, shippedEvalPack: pack !== null };

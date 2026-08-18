@@ -11,7 +11,11 @@ import {
   upsertRepo,
 } from "../src/db/index.ts";
 import { migrate } from "../src/db/migrate.ts";
-import { buildMigrationPr, replaceEvalSection } from "../src/github/migration.ts";
+import {
+  buildMigrationPr,
+  judgeProviderFor,
+  replaceEvalSection,
+} from "../src/github/migration.ts";
 import type { RepoTarget } from "../src/github/types.ts";
 import { runJob, setExtractionLlmForTesting } from "../src/pipeline.ts";
 import type { EventTransformResult } from "../src/transforms/types.ts";
@@ -108,8 +112,15 @@ const CANNED_CASE = JSON.stringify([
 
 const reqs = (route: string) => state.requests.filter((r) => r.route === route);
 
-async function seedRepo(repoId: number, config: Record<string, unknown> = {}): Promise<void> {
+async function seedRepo(
+  repoId: number,
+  config: Record<string, unknown> = {},
+  opts: { paid?: boolean } = {},
+): Promise<void> {
   await upsertInstallation(INST, "acme");
+  // eval packs are the paid line; default the fixtures to a paying org so the
+  // pack-shipping tests exercise the pack, not the upsell
+  await sql`update installations set paid = ${opts.paid ?? true} where id = ${INST}`;
   await upsertRepo({ id: repoId, installationId: INST, owner: "acme", name: `r${repoId}`, defaultBranch: "main" });
   await markOnboarded(repoId, AidepConfigSchema.parse(config));
 }
@@ -568,5 +579,61 @@ describe("buildMigrationPr", () => {
     });
     expect(built.title).toBe("Drop deprecated sampling params for Claude 4.7+");
     expect((built.body.match(/- \[ \] same item/g) ?? []).length).toBe(1);
+  });
+});
+
+describe("judge selection", () => {
+  it("skips a candidate once the registry marks it deprecated", () => {
+    const rows = [
+      {
+        ...MINI_REGISTRY[0],
+        id: "anthropic:model:claude-sonnet-4-6",
+        provider: "anthropic" as const,
+        surface: "model" as const,
+        api_ids: ["claude-sonnet-4-6"],
+        status: "deprecated" as const,
+      },
+    ];
+    // migrating an OpenAI model means an Anthropic judge; the first candidate
+    // is now dying, so it must fall through to the next one
+    expect(judgeProviderFor("openai", rows)).toBe("anthropic:messages:claude-sonnet-5");
+    expect(judgeProviderFor("openai", [])).toBe("anthropic:messages:claude-sonnet-4-6");
+  });
+
+  it("names the same judge in the PR body that the pack pins", async () => {
+    await seedRepo(REPO_EVAL, { evals: true });
+    await seedFinding(REPO_EVAL, GPT5, "src/summarize.ts");
+    state.repoFiles = { "src/summarize.ts": TS_SUMMARIZE };
+    setExtractionLlmForTesting(() => async () => CANNED_CASE);
+
+    await job("create_migration_pr", { repoId: REPO_EVAL, registryId: GPT5 });
+
+    const config = JSON.parse(state.branchFiles["evals/promptfooconfig.json"]);
+    const pinned = config.defaultTest.options.provider as string;
+    const [prPost] = reqs("POST /repos/{owner}/{repo}/pulls");
+    expect(prPost.params.body as string).toContain(`Judge: ${pinned}`);
+  });
+});
+
+describe("aidep Proof gate", () => {
+  it("ships the migration PR but skips the pack when the org is unpaid", async () => {
+    await seedRepo(REPO_EVAL, { evals: true }, { paid: false });
+    await seedFinding(REPO_EVAL, GPT5, "src/summarize.ts");
+    state.repoFiles = { "src/summarize.ts": TS_SUMMARIZE };
+    setExtractionLlmForTesting(() => async () => CANNED_CASE);
+
+    await job("create_migration_pr", { repoId: REPO_EVAL, registryId: GPT5 });
+
+    // the migration itself is free: the PR opens and the file is transformed
+    const put = state.puts.find((p) => p.path === "src/summarize.ts");
+    expect(put?.content).toContain("gpt-5.6-sol");
+    const [prPost] = reqs("POST /repos/{owner}/{repo}/pulls");
+    expect(prPost).toBeDefined();
+
+    // but no pack ships, and the body says why
+    expect(state.puts.filter((p) => p.path.startsWith("evals/"))).toHaveLength(0);
+    const body = prPost.params.body as string;
+    expect(body).toContain("eval packs are on aidep Proof");
+    expect(body).not.toContain("**Eval: pending.**");
   });
 });

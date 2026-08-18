@@ -1,7 +1,6 @@
 import { after } from "next/server.js";
 import { z } from "zod";
 import { getSessionFromCookies, requireRepoAccess } from "../../../../../src/auth/access.ts";
-import { sql } from "../../../../../src/db/index.ts";
 import { drain, enqueue } from "../../../../../src/jobs.ts";
 import { runJob } from "../../../../../src/pipeline.ts";
 import { RegistryRowSchema } from "../../../../../src/registry.ts";
@@ -33,17 +32,8 @@ export async function POST(
   const { repo, allowed } = await requireRepoAccess(session, repoId);
   if (!repo || !allowed) return new Response("forbidden", { status: 403 });
 
-  if (repo.private) {
-    const [inst] = await sql<{ paid: boolean }[]>`
-      select paid from installations where id = ${repo.installation_id}`;
-    if (!inst?.paid) {
-      return Response.json(
-        { error: "paid", message: "Migration PRs on private repos are on the paid plan." },
-        { status: 402 },
-      );
-    }
-  }
-
+  // Migration PRs are free on every repo, public or private. The paid line is
+  // the eval pack, gated in evalPackFor where the pack is actually built.
   await enqueue("create_migration_pr", { repoId, registryId: parsed.data.registryId });
   kick();
   return Response.json({ enqueued: true });

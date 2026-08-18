@@ -59,13 +59,17 @@ export default async function LandingPage() {
           {rows.length} deprecations tracked across OpenAI, Anthropic, and Google
         </p>
         <h1 className="mt-5 max-w-4xl text-4xl leading-[1.08] tracking-tight sm:text-5xl">
-          312,320 files on GitHub still call a model that died ten months ago.
+          308,224 files on GitHub still call a model that died ten months ago.
         </h1>
         <p className="mt-6 max-w-2xl text-lg leading-relaxed text-ink-secondary">
-          17,104 more call an API that shuts down on August 26. aidep finds yours, opens the
+          16,320 more call an API that shuts down on August 26. aidep finds yours, opens the
           migration PR, and proves behavior held.
         </p>
-        <p className="mt-2 text-sm text-ink-muted">Counts: public GitHub code search, Aug 2026.</p>
+        <p className="mt-2 max-w-2xl text-sm text-ink-muted">
+          Counts from GitHub code search on 2026-08-18, one query each:{" "}
+          <code>&quot;claude-3-5-sonnet-20241022&quot;</code> (retired 2025-10-28) and{" "}
+          <code>&quot;client.beta.threads&quot;</code>. Run them yourself.
+        </p>
         <div className="mt-9 flex flex-wrap items-center gap-3">
           {installUrl ? (
             <a

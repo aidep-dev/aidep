@@ -64,20 +64,34 @@ function parseCases(raw: string): EvalCase[] | null {
   return result.success ? result.data : null;
 }
 
+/** Max LLM calls per extraction run; files, not repos, drive our cost. */
+export const MAX_FILES_PER_EXTRACTION = 20;
+
 /**
  * Extract eval cases from repo files, one llm call per non-prompt file.
  * Invalid or unparseable llm output skips that file (noted on stderr).
- * Global cap (default 20) across all files, in file order.
+ * Capped twice: `cap` bounds cases (default 20), `fileCap` bounds llm calls
+ * (default MAX_FILES_PER_EXTRACTION), both in file order.
  */
 export async function extractCases(
   files: Array<{ path: string; content: string }>,
   llm: Llm,
-  opts: { cap?: number },
+  opts: { cap?: number; fileCap?: number },
 ): Promise<EvalCase[]> {
   const cap = opts.cap ?? 20;
+  // One LLM call per file, so files are the cost driver, not repos: a 200-file
+  // monorepo would be 200 calls on one flat-price org. Cap the calls too.
+  const fileCap = opts.fileCap ?? MAX_FILES_PER_EXTRACTION;
   const out: EvalCase[] = [];
+  let called = 0;
   for (const file of files) {
     if (out.length >= cap) break;
+    if (called >= fileCap && !isPromptFile(file.path)) {
+      console.warn(
+        `evalgen: reached the ${fileCap}-file extraction cap; ${files.length - files.indexOf(file)} file(s) not sampled`,
+      );
+      break;
+    }
     if (isPromptFile(file.path)) {
       out.push({
         description: `prompt file: ${file.path}`,
@@ -88,6 +102,7 @@ export async function extractCases(
       continue;
     }
     let raw: string;
+    called++;
     try {
       raw = await llm(SYSTEM_PROMPT, file.content);
     } catch (e) {
@@ -109,7 +124,7 @@ export async function extractCases(
 export function anthropicLlm(): Llm {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("ANTHROPIC_API_KEY is not set");
-  const model = process.env.AIDEP_EXTRACT_MODEL ?? "claude-sonnet-4-6";
+  const model = process.env.AIDEP_EXTRACT_MODEL ?? "claude-haiku-4-5";
   return async (system, user) => {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",

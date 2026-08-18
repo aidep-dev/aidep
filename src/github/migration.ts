@@ -26,6 +26,9 @@ export interface MigrationPrInput {
   evalPair?: { old: string; new: string } | null;
   /** extra one-line note under the eval block (e.g. dropped templates) */
   evalNote?: string | null;
+  /** the judge the pack actually pins; the body must never name a different
+   * one than the config does */
+  judgeProvider?: string | null;
   /** YYYY-MM-DD (same contract as the onboarding builder) */
   now: string;
 }
@@ -44,10 +47,46 @@ export function modelSlug(id: string): string {
   return parts[parts.length - 1];
 }
 
-/** Judge pinned to a different family than the model under test, in
- * promptfoo's canonical provider-id form. */
-export function judgeProviderFor(provider: RegistryRow["provider"]): string {
-  return provider === "openai" ? "anthropic:messages:claude-sonnet-4-6" : "openai:chat:gpt-5.6-sol";
+/**
+ * Judge candidates per family, best first, in promptfoo's canonical
+ * provider-id form. The registry only records what is dying, never what is
+ * alive, so the candidate ids are necessarily hardcoded; judgeProviderFor
+ * checks each against the registry and skips any we already know is on its
+ * way out. Shipping a judge that is itself deprecated is the exact bug this
+ * product exists to catch, so it is a test failure, not a style issue.
+ */
+const JUDGE_CANDIDATES: Record<"openai" | "anthropic", Array<{ model: string; id: string }>> = {
+  anthropic: [
+    { model: "claude-sonnet-4-6", id: "anthropic:messages:claude-sonnet-4-6" },
+    { model: "claude-sonnet-5", id: "anthropic:messages:claude-sonnet-5" },
+    { model: "claude-opus-4-8", id: "anthropic:messages:claude-opus-4-8" },
+  ],
+  openai: [
+    { model: "gpt-5.6-sol", id: "openai:chat:gpt-5.6-sol" },
+    { model: "gpt-5.6-terra", id: "openai:chat:gpt-5.6-terra" },
+  ],
+};
+
+/** True when the registry says this model id is deprecated or already gone. */
+export function isDyingModel(model: string, rows: RegistryRow[]): boolean {
+  return rows.some(
+    (r) =>
+      r.surface === "model" &&
+      (r.status === "deprecated" || r.status === "retired") &&
+      r.api_ids.includes(model),
+  );
+}
+
+/**
+ * Judge pinned to a different model family than the one under test, and never
+ * to a model the registry knows is deprecated or retired. Falls back to the
+ * last candidate when every option is dying, so an eval still runs; the test
+ * suite is what tells us to refresh the list.
+ */
+export function judgeProviderFor(provider: RegistryRow["provider"], rows: RegistryRow[] = []): string {
+  const family = provider === "openai" ? "anthropic" : "openai";
+  const candidates = JUDGE_CANDIDATES[family];
+  return (candidates.find((c) => !isDyingModel(c.model, rows)) ?? candidates[candidates.length - 1]).id;
 }
 
 export function statusOf(e: unknown): number | undefined {
@@ -134,7 +173,7 @@ export function buildMigrationPr(input: MigrationPrInput): BuiltMigrationPr {
       "",
       `**Eval: pending.** The evals/ pack in this PR runs your prompts on ${old} vs ${next} in your CI. Review evals/tests.json (these cases were extracted from your code), then move evals/workflows/aidep-eval.yml into .github/workflows/ to enable the run; moving the file is the opt-in.`,
       "",
-      `Judge: ${judgeProviderFor(event.provider)} (a different model family than the one under test). Set its API key in repo secrets, or edit defaultTest.options.provider in evals/promptfooconfig.json to a family you hold keys for.`,
+      `Judge: ${input.judgeProvider ?? judgeProviderFor(event.provider)} (a different model family than the one under test). Set its API key in repo secrets, or edit defaultTest.options.provider in evals/promptfooconfig.json to a family you hold keys for.`,
       "",
     );
     if (input.evalNote != null) out.push(`*${input.evalNote}*`, "");
