@@ -7,7 +7,7 @@ import type { RegistryRow } from "../registry.ts";
  */
 export interface Matcher {
   row: RegistryRow;
-  kind: "line" | "param";
+  kind: "line" | "param" | "assistants-helper";
   regex: RegExp;
   display: string;
 }
@@ -19,6 +19,30 @@ export interface Matcher {
  */
 export const PARAM_MODEL_GATE =
   /claude-(?:[a-z]+-)*(?:4-[7-9]|[5-9])(?![0-9])|claude-mythos/;
+
+/**
+ * Helper names like `createAndPoll` and `submit_tool_outputs` say nothing on
+ * their own: `createAndPoll` is a stock Stainless codegen name and fires
+ * across most generated SDKs, and `submit_tool_outputs` is a path segment in
+ * other vendors' chat APIs. They only mean the OpenAI Assistants API when the
+ * same file also shows an unambiguous marker of it.
+ *
+ * Found 2026-08-19: without this gate, three of nine candidate repos
+ * (coze-js, mixedbread-ts, anymodel) were flagged as exposed while containing
+ * no OpenAI Assistants code at all. Telling a maintainer their code breaks
+ * when it does not is worse than missing them.
+ */
+export const ASSISTANTS_FILE_GATE =
+  /\.beta\.(assistants|threads)\b|openai\.types\.beta|from openai\b|require\(['"]openai['"]\)|['"]openai['"]|\/v1\/(assistants|threads)\b|OpenAI-Beta/i;
+
+/**
+ * Real OpenAI object ids are a prefix plus ~24 random alphanumerics. The old
+ * {6,} floor matched ordinary snake_case identifiers: `run_document_ai_processor`
+ * and `thread_channel` produced 12 false findings in one real repo (43% of
+ * that scan). Require an id-shaped run and refuse a trailing word char so a
+ * longer snake_case name cannot satisfy it.
+ */
+const ID_LITERAL_MIN = 16;
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -32,7 +56,8 @@ export const ID_BOUNDARY_RIGHT = "(?![A-Za-z0-9._-])";
 const ASSISTANTS_ROW_ID = "openai:endpoint:assistants-api";
 
 function assistantsMatchers(row: RegistryRow): Matcher[] {
-  const defs: Array<[RegExp, string]> = [
+  // unambiguous on their own: an OpenAI SDK call shape, a header, an env var
+  const strong: Array<[RegExp, string]> = [
     // Match on the distinctive `.beta.assistants` / `.beta.threads` tail and
     // accept ANY receiver. Real code names the client whatever it likes:
     // `openai_client` (the name in OpenAI's own examples), `oai`, `_client`,
@@ -41,6 +66,31 @@ function assistantsMatchers(row: RegistryRow): Matcher[] {
     // 2026-08-18 by diffing against a human migration of that same file.
     [/\.beta\.assistants\b/, ".beta.assistants"],
     [/\.beta\.threads\b/, ".beta.threads"],
+    // Ruby SDKs express it as a keyword arg rather than a dot-chain:
+    // `client.beta(assistants: OpenAI::Assistants::BETA_VERSION)`. Missed
+    // every Assistants call in alexrudall/ruby-openai (45M downloads) until
+    // 2026-08-19.
+    [/\.beta\(\s*assistants\s*:/, "beta(assistants:)"],
+    [/openai\.types\.beta\.threads/i, "openai.types.beta.threads"],
+    // matches both `OpenAI-Beta: assistants=v2` and `"OpenAI-Beta": "assistants=v2"`
+    [/OpenAI-Beta['"]?\s*[:=]\s*['"]?assistants/, "OpenAI-Beta: assistants header"],
+    [
+      new RegExp(`(?<![A-Za-z0-9_])asst_[A-Za-z0-9]{${ID_LITERAL_MIN},}(?![A-Za-z0-9_])`),
+      "asst_ id literal",
+    ],
+    [
+      new RegExp(`(?<![A-Za-z0-9_])thread_[A-Za-z0-9]{${ID_LITERAL_MIN},}(?![A-Za-z0-9_])`),
+      "thread_ id literal",
+    ],
+    [
+      new RegExp(`(?<![A-Za-z0-9_])run_[A-Za-z0-9]{${ID_LITERAL_MIN},}(?![A-Za-z0-9_])`),
+      "run_ id literal",
+    ],
+    [/(?<![A-Za-z0-9])[A-Z0-9_]*ASSISTANT_ID[A-Z0-9_]*/, "ASSISTANT_ID env var"],
+  ];
+
+  // Meaningless without OpenAI context in the same file; see ASSISTANTS_FILE_GATE.
+  const helpers: Array<[RegExp, string]> = [
     [/\bcreate_and_poll\b/, "create_and_poll"],
     [/\bcreateAndPoll\b/, "createAndPoll"],
     [/\bsubmit_tool_outputs\b/, "submit_tool_outputs"],
@@ -48,14 +98,28 @@ function assistantsMatchers(row: RegistryRow): Matcher[] {
     [/\bcreate_and_run\b/, "create_and_run"],
     [/\bcreateAndRun\b/, "createAndRun"],
     [/\bruns\.stream\b/, "runs.stream"],
-    // matches both `OpenAI-Beta: assistants=v2` and `"OpenAI-Beta": "assistants=v2"`
-    [/OpenAI-Beta['"]?\s*[:=]\s*['"]?assistants/, "OpenAI-Beta: assistants header"],
-    [/(?<![A-Za-z0-9_])asst_[A-Za-z0-9]{6,}/, "asst_ id literal"],
-    [/(?<![A-Za-z0-9_])thread_[A-Za-z0-9]{6,}/, "thread_ id literal"],
-    [/(?<![A-Za-z0-9_])run_[A-Za-z0-9]{6,}/, "run_ id literal"],
-    [/(?<![A-Za-z0-9])[A-Z0-9_]*ASSISTANT_ID[A-Z0-9_]*/, "ASSISTANT_ID env var"],
   ];
-  return defs.map(([regex, display]) => ({ row, kind: "line", regex, display }));
+
+  return [
+    ...strong.map(([regex, display]) => ({ row, kind: "line" as const, regex, display })),
+    ...helpers.map(([regex, display]) => ({
+      row,
+      kind: "assistants-helper" as const,
+      regex,
+      display,
+    })),
+  ];
+}
+
+/**
+ * An id distinctive enough to match unquoted. Short or dictionary-word ids
+ * (`o1`, `ada`, `babbage`, `davinci`) match ordinary prose and identifiers, so
+ * they only count inside a string literal. `davinci`, `babbage` and `o1` all
+ * produced false findings on a real repo before this.
+ */
+function isDistinctiveId(id: string): boolean {
+  if (/[/.]/.test(id)) return true; // path- or dotted-shaped, e.g. /v1/assistants
+  return id.length >= 6 && /\d/.test(id) && /-/.test(id);
 }
 
 export function buildPatterns(rows: RegistryRow[]): Matcher[] {
@@ -78,10 +142,15 @@ export function buildPatterns(rows: RegistryRow[]): Matcher[] {
       // would wrongly reject "api.openai.com/v1/assistants"
       const left = /^[A-Za-z0-9._-]/.test(id) ? ID_BOUNDARY_LEFT : "";
       const right = /[A-Za-z0-9._-]$/.test(id) ? ID_BOUNDARY_RIGHT : "";
+      // a non-distinctive id only counts inside quotes, where it is being used
+      // as a model string rather than appearing as an English word
+      const body = isDistinctiveId(id)
+        ? left + escapeRegExp(id) + right
+        : `['"\`]${escapeRegExp(id)}['"\`]`;
       matchers.push({
         row,
         kind: "line",
-        regex: new RegExp(left + escapeRegExp(id) + right),
+        regex: new RegExp(body),
         display: id,
       });
     }

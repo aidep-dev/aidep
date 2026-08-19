@@ -169,3 +169,49 @@ describe("real-world regression: receiver naming", () => {
     }
   });
 });
+
+describe("real-world regression: precision", () => {
+  // 2026-08-19. Qualifying nine candidate repos for outreach, three were
+  // flagged as exposed while containing no OpenAI Assistants code at all
+  // (coze-js, mixedbread-ts, anymodel), and a fourth reported 43% false
+  // findings. Telling a maintainer their code breaks when it does not is
+  // worse than missing them, so each of these is a permanent guard.
+  const clean = (label: string, text: string) =>
+    it(`stays clean: ${label}`, () => {
+      expect(scanFiles([{ path: "f.ts", text }], MINI_REGISTRY).findings).toEqual([]);
+    });
+
+  // coze-js: Coze's own /v3/chat API, nothing to do with OpenAI
+  clean("another vendor's submit_tool_outputs path", 'const u = `/v3/chat/submit_tool_outputs?id=${id}`;');
+  // mixedbread-ts and anymodel: createAndPoll is a stock Stainless codegen name
+  clean("a polling helper in a non-OpenAI SDK", "async createAndPoll(id) { return this.poll(id); }");
+  // raven: ordinary snake_case, not OpenAI object ids
+  clean("snake_case identifiers that start run_/thread_", "from x import run_document_ai_processor");
+  clean("thread_channel variable", 'thread_channel = frappe.get_doc("Raven Channel")');
+  // anymodel: short/dictionary model ids as bare words
+  clean("dictionary-word model id in prose", "# the davinci era is over");
+  clean("two-character model id as a variable", "const o1 = compute();");
+
+  it("still fires on helpers when the file has real OpenAI context", () => {
+    const text = 'import OpenAI from "openai";\nconst r = await run.createAndPoll(id);\n';
+    const found = scanFiles([{ path: "f.ts", text }], MINI_REGISTRY).findings;
+    expect(found.some((f) => f.matched === "createAndPoll")).toBe(true);
+  });
+
+  it("still fires on a genuine OpenAI object id", () => {
+    const text = 'const t = "thread_9kQvXcR2mNbF7yT1wZ8pL3dJ";';
+    expect(scanFiles([{ path: "f.ts", text }], MINI_REGISTRY).findings).toHaveLength(1);
+  });
+
+  it("still fires on a non-distinctive model id when it is quoted", () => {
+    const found = scanFiles([{ path: "f.py", text: 'model = "gpt-4-turbo"' }], MINI_REGISTRY);
+    expect(found.findings).toHaveLength(1);
+  });
+
+  it("catches the Ruby keyword-arg form the dot-chain patterns miss", () => {
+    // alexrudall/ruby-openai lib/openai/assistants.rb, 45M downloads, missed entirely
+    const text = "@client = client.beta(assistants: OpenAI::Assistants::BETA_VERSION)\n";
+    const found = scanFiles([{ path: "assistants.rb", text }], MINI_REGISTRY).findings;
+    expect(found.some((f) => f.matched === "beta(assistants:)")).toBe(true);
+  });
+});

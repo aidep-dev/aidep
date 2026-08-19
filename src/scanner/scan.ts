@@ -1,6 +1,6 @@
 import type { RegistryRow } from "../registry.ts";
 import type { Finding, ScanFile, ScanResult } from "./types.ts";
-import { buildPatterns, PARAM_MODEL_GATE } from "./patterns.ts";
+import { ASSISTANTS_FILE_GATE, buildPatterns, PARAM_MODEL_GATE } from "./patterns.ts";
 
 const LOCKFILE_BASENAMES = new Set([
   "package-lock.json",
@@ -47,6 +47,7 @@ export function scanFiles(files: ScanFile[], rows: RegistryRow[]): ScanResult {
   const matchers = buildPatterns(rows);
   const lineMatchers = matchers.filter((m) => m.kind === "line");
   const paramMatchers = matchers.filter((m) => m.kind === "param");
+  const helperMatchers = matchers.filter((m) => m.kind === "assistants-helper");
 
   const findings: Finding[] = [];
   let filesScanned = 0;
@@ -60,12 +61,19 @@ export function scanFiles(files: ScanFile[], rows: RegistryRow[]): ScanResult {
     filesScanned++;
 
     const paramGate = paramMatchers.length > 0 && PARAM_MODEL_GATE.test(file.text);
+    // bare helper names only count when the file shows real OpenAI context
+    const helperGate = helperMatchers.length > 0 && ASSISTANTS_FILE_GATE.test(file.text);
     const lines = file.text.split(/\r?\n/);
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       // one finding per (pattern, line); two different ids on a line = two findings
       for (const m of lineMatchers) {
         if (m.regex.test(line)) findings.push(toFinding(m.row, file.path, i + 1, m.display));
+      }
+      if (helperGate) {
+        for (const m of helperMatchers) {
+          if (m.regex.test(line)) findings.push(toFinding(m.row, file.path, i + 1, m.display));
+        }
       }
       if (paramGate) {
         for (const m of paramMatchers) {
