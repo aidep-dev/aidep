@@ -27,6 +27,9 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # next-env.d.ts and .next/types are gitignored, so the generated
+      # route and layout types are absent on a fresh checkout
+      - run: npx next typegen
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
