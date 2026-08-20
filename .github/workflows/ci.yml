@@ -20,6 +20,9 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgres://postgres@localhost:5433/aidep
+      # the default is a sibling checkout (../aidep-registry), which only exists
+      # in local dev; on CI read the same raw URL production reads
+      REGISTRY_SOURCE: https://raw.githubusercontent.com/aidep-dev/aidep-registry/master/registry
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
