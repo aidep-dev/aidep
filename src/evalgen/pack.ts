@@ -2,7 +2,10 @@ import { readFileSync } from "node:fs";
 import type { EvalPackInput, GeneratedFile } from "./types.ts";
 
 /** All JSON goes through JSON.stringify; never string templates; so repo-derived
- * strings cannot break out of their value position (injection-safe by construction). */
+ * strings cannot break out of their value position (injection-safe by construction).
+ * `unknown` is JSON.stringify's own contract: narrowing it here would just push
+ * a cast to every caller. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters
 function json(value: unknown): string {
   return JSON.stringify(value, null, 2) + "\n";
 }

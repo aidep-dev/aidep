@@ -19,12 +19,13 @@ const CONFIG_PATH = ".github/aidep.json";
 const REBASE_CHECKED = "- [x] <!-- aidep-rebase -->";
 const RERUN_CHECKED = "- [x] <!-- aidep-rerun -->";
 
-const REGISTERED = Symbol.for("aidep.handlersRegistered");
+const registered = new WeakSet<App>();
 
-function accountLogin(account: unknown): string {
-  // installation.account is a user (login) or an enterprise (slug)
-  const a = account as { login?: string; slug?: string } | null;
-  return a?.login ?? a?.slug ?? "unknown";
+/** installation.account is a user (login) or an enterprise (slug). */
+type InstallationAccount = { login?: string; slug?: string } | null;
+
+function accountLogin(account: InstallationAccount): string {
+  return account?.login ?? account?.slug ?? "unknown";
 }
 
 async function addRepos(
@@ -49,9 +50,8 @@ async function addRepos(
  * (tarball scans, PR creation) runs in drain() after the response.
  */
 export function registerHandlers(app: App): void {
-  const flags = app as unknown as Record<symbol, boolean | undefined>;
-  if (flags[REGISTERED]) return;
-  flags[REGISTERED] = true;
+  if (registered.has(app)) return;
+  registered.add(app);
 
   app.webhooks.on("installation.created", async ({ payload }) => {
     await upsertInstallation(payload.installation.id, accountLogin(payload.installation.account));

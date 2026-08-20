@@ -89,6 +89,10 @@ export function judgeProviderFor(provider: RegistryRow["provider"], rows: Regist
   return (candidates.find((c) => !isDyingModel(c.model, rows)) ?? candidates[candidates.length - 1]).id;
 }
 
+/* A catch clause yields `unknown` by construction, so there is no I/O boundary
+ * to parse at and no domain type to accept; this IS the boundary that turns a
+ * thrown value into one. Shared with onboarding.ts and pipeline.ts. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters
 export function statusOf(e: unknown): number | undefined {
   return typeof e === "object" && e !== null && "status" in e
     ? (e as { status?: number }).status
@@ -340,14 +344,18 @@ export async function putFilesOnBranch(
     } catch (e) {
       if (statusOf(e) !== 404) throw e;
     }
-    await octokit.request("PUT /repos/{owner}/{repo}/contents/{path}", {
+    const params = {
       ...base,
       path: file.path,
       message: `aidep: update ${file.path}`,
       content: Buffer.from(file.content, "utf8").toString("base64"),
       branch,
-      ...(existingSha !== undefined ? { sha: existingSha } : {}),
-    });
+    };
+    // sha present means update an existing file, absent means create it.
+    await octokit.request(
+      "PUT /repos/{owner}/{repo}/contents/{path}",
+      existingSha === undefined ? params : { ...params, sha: existingSha },
+    );
   }
 }
 

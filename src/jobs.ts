@@ -1,24 +1,27 @@
 import { sql } from "./db/index.ts";
 
-export type JobType =
-  | "scan" // payload: { repoId }
-  | "onboard" // payload: { installationId, repoId }
-  | "create_migration_pr" // payload: { repoId, registryId }
-  | "rerun_pr" // payload: { repoId, prNumber }
-  | "ingest_eval_results"; // payload: { repoId, prNumber, branch }
-
-export interface Job {
-  id: number;
-  type: JobType;
-  payload: Record<string, unknown>;
-  attempts: number;
+/** The payload each job type carries. Every enqueue and every handler branch
+ * reads from here, so a new field is a type error at both ends rather than an
+ * undefined at runtime. */
+export interface JobPayloads {
+  scan: { repoId: number; headSha?: string | null; rereadConfig?: boolean };
+  onboard: { repoId: number; installationId?: number; refresh?: boolean };
+  create_migration_pr: { repoId: number; registryId: string };
+  rerun_pr: { repoId: number; prNumber: number };
+  ingest_eval_results: { repoId: number; prNumber: number | null; branch: string };
 }
+
+export type JobType = keyof JobPayloads;
+
+export type Job = {
+  [K in JobType]: { id: number; type: K; payload: JobPayloads[K]; attempts: number };
+}[JobType];
 
 export const MAX_ATTEMPTS = 5;
 
-export async function enqueue(
-  type: JobType,
-  payload: Record<string, unknown>,
+export async function enqueue<K extends JobType>(
+  type: K,
+  payload: JobPayloads[K],
   opts: { runAfterSeconds?: number } = {},
 ): Promise<number> {
   const rows = await sql<{ id: number }[]>`
@@ -29,6 +32,8 @@ export async function enqueue(
 }
 
 export async function claimNext(): Promise<Job | null> {
+  // enqueue() above is the only writer of this column and it is typed, so the
+  // row shape is our own data round-tripping, not third-party input.
   const rows = await sql<Job[]>`
     update jobs set status = 'running', attempts = attempts + 1, claimed_at = now()
     where id = (

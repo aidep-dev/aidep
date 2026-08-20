@@ -201,9 +201,9 @@ it("runJob dispatches scan and onboard, no-ops the M3 job types", async () => {
   await runJob({ id: 1, type: "scan", payload: { repoId: 3107 }, attempts: 1 });
   expect(await findingRows(3107)).toHaveLength(1);
 
-  await runJob({ id: 2, type: "create_migration_pr", payload: {}, attempts: 1 });
-  await runJob({ id: 3, type: "rerun_pr", payload: {}, attempts: 1 });
-  await runJob({ id: 4, type: "ingest_eval_results", payload: {}, attempts: 1 });
+  await runJob({ id: 2, type: "create_migration_pr", payload: { repoId: 3107, registryId: "" }, attempts: 1 });
+  await runJob({ id: 3, type: "rerun_pr", payload: { repoId: 3107, prNumber: 0 }, attempts: 1 });
+  await runJob({ id: 4, type: "ingest_eval_results", payload: { repoId: 3107, prNumber: null, branch: "" }, attempts: 1 });
   // nothing scanned or created for the no-op types
   expect(await sql`select 1 from scans where repo_id = 3107`).toHaveLength(1);
 });

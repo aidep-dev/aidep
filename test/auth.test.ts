@@ -120,7 +120,9 @@ describe("migrate route", () => {
     return POST(
       new Request(`http://localhost/api/repos/${repoId}/migrate`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) },
+        headers: cookie
+          ? { "content-type": "application/json", cookie }
+          : { "content-type": "application/json" },
         body: JSON.stringify({ registryId }),
       }),
       { params: Promise.resolve({ repoId: String(repoId) }) },

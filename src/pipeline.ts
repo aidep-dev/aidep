@@ -52,36 +52,37 @@ import type { EventFileInput } from "./transforms/types.ts";
 const CONFIG_PATH = ".github/aidep.json";
 
 export async function runJob(job: Job): Promise<void> {
-  const repoId = Number(job.payload.repoId);
+  const repoId = job.payload.repoId;
   switch (job.type) {
     case "scan":
       await scanRepo(repoId, {
         rereadConfig: job.payload.rereadConfig === true,
-        headSha: typeof job.payload.headSha === "string" ? job.payload.headSha : null,
+        headSha: job.payload.headSha ?? null,
       });
       break;
     case "onboard":
       await onboardRepo(repoId, { refresh: job.payload.refresh === true });
       break;
     case "create_migration_pr":
-      await createMigrationPr(
-        repoId,
-        typeof job.payload.registryId === "string" ? job.payload.registryId : "",
-      );
+      await createMigrationPr(repoId, job.payload.registryId);
       break;
     case "rerun_pr":
-      await rerunPr(repoId, Number(job.payload.prNumber));
+      await rerunPr(repoId, job.payload.prNumber);
       break;
     case "ingest_eval_results":
-      await ingestEvalResults(repoId, typeof job.payload.branch === "string" ? job.payload.branch : "");
+      await ingestEvalResults(repoId, job.payload.branch);
       break;
   }
 }
 
+/** The tarball boundary: octokit hands back `unknown` and the runtime picks the
+ * binary shape, so this is where it becomes a Buffer or fails loudly. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters
 function toBuffer(data: unknown): Buffer {
   if (Buffer.isBuffer(data)) return data;
   if (data instanceof ArrayBuffer) return Buffer.from(data);
-  return Buffer.from(data as Uint8Array);
+  if (ArrayBuffer.isView(data)) return Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+  throw new TypeError(`tarball response was ${typeof data}, expected binary`);
 }
 
 /** A glob ignores the path itself or anything beneath it: "docs" drops docs/x/y.md. */

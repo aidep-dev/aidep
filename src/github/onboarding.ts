@@ -3,6 +3,7 @@ import { DEFAULT_CONFIG } from "../config.ts";
 import type { RegistryRow } from "../registry.ts";
 import type { ScanResult } from "../scanner/types.ts";
 import { renderMarkdownReport } from "../scanner/report.ts";
+import { statusOf } from "./migration.ts";
 import type { OctokitLike, RepoTarget } from "./types.ts";
 
 export interface OnboardingPrContent {
@@ -73,12 +74,6 @@ export function buildOnboardingPr(input: OnboardInput): OnboardingPrContent {
   };
 }
 
-function statusOf(e: unknown): number | undefined {
-  return typeof e === "object" && e !== null && "status" in e
-    ? (e as { status?: number }).status
-    : undefined;
-}
-
 /**
  * Create the onboarding branch off the default branch head, commit the config
  * file, open the PR. Returns the PR number.
@@ -119,14 +114,18 @@ export async function openOnboardingPr(
     if (statusOf(e) !== 404) throw e;
   }
 
-  await octokit.request("PUT /repos/{owner}/{repo}/contents/{path}", {
+  const params = {
     ...base,
     path: content.configPath,
     message: "Add aidep config",
     content: Buffer.from(content.configContent, "utf8").toString("base64"),
     branch: content.branch,
-    ...(existingFileSha !== undefined ? { sha: existingFileSha } : {}),
-  });
+  };
+  // sha present means update an existing file, absent means create it.
+  await octokit.request(
+    "PUT /repos/{owner}/{repo}/contents/{path}",
+    existingFileSha === undefined ? params : { ...params, sha: existingFileSha },
+  );
 
   try {
     const pr = await octokit.request("POST /repos/{owner}/{repo}/pulls", {

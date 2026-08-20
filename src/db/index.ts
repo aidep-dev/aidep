@@ -189,11 +189,20 @@ export async function getPrByNumber(repoId: number, number: number) {
   return rows[0] ?? null;
 }
 
+/** Eval counts persisted on the PR row. Structurally what migration.ts builds,
+ * kept here so the db layer does not import from the github layer. */
+export interface EvalSummary {
+  held: number;
+  drifted: number;
+  inconclusive: number;
+  total: number;
+}
+
 export async function setPrEval(
   repoId: number,
   number: number,
   evalStatus: string,
-  summary: unknown,
+  summary: EvalSummary,
 ): Promise<void> {
   await sql`
     update prs set eval_status = ${evalStatus}, eval_summary = ${sql.json(summary as never)}

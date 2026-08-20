@@ -17,6 +17,7 @@ import {
   replaceEvalSection,
 } from "../src/github/migration.ts";
 import type { RepoTarget } from "../src/github/types.ts";
+import type { Job, JobPayloads, JobType } from "../src/jobs.ts";
 import { runJob, setExtractionLlmForTesting } from "../src/pipeline.ts";
 import type { EventTransformResult } from "../src/transforms/types.ts";
 import { MINI_REGISTRY } from "./mini-registry.ts";
@@ -138,8 +139,10 @@ async function seedFinding(
             ${opts.status ?? "open"}, ${opts.prId ?? null})`;
 }
 
-function job(type: "create_migration_pr" | "rerun_pr" | "ingest_eval_results", payload: Record<string, unknown>) {
-  return runJob({ id: 1, type, payload, attempts: 1 });
+function job<K extends JobType>(type: K, payload: JobPayloads[K]) {
+  // The literal is correlated by construction, but TypeScript will not collapse
+  // a generic K back onto the Job union without help.
+  return runJob({ id: 1, type, payload, attempts: 1 } as Job);
 }
 
 beforeAll(async () => {
