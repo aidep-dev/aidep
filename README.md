@@ -5,19 +5,20 @@ Dependabot for AI APIs. aidep knows every OpenAI, Anthropic, and Google model an
 Two repos make the product:
 
 - **aidep** (this repo): one Next.js app. GitHub App webhook, scan pipeline, migration PR generation, eval pack generation, dashboard, public pages.
-- **[aidep-registry](../aidep-registry)**: the deprecation registry as JSON, plus the parsers and the daily poller that keep it current. Clone it as a sibling directory (`../aidep-registry`), or point `REGISTRY_SOURCE` at a raw URL serving its `registry/` files.
+- **[aidep-registry](https://github.com/aidep-dev/aidep-registry)**: the deprecation registry as JSON, plus the parsers and the daily poller that keep it current. Clone it as a sibling directory (`../aidep-registry`), or point `REGISTRY_SOURCE` at a raw URL serving its `registry/` files.
 
 ## Run it locally
 
 Prereqs: Node 24+, Docker, npm.
 
 ```sh
-git clone <this repo> aidep && git clone <registry repo> aidep-registry
+git clone https://github.com/aidep-dev/aidep.git
+git clone https://github.com/aidep-dev/aidep-registry.git
 cd aidep
 npm ci
 docker compose up -d          # Postgres on localhost:5433
 node src/db/migrate.ts        # applies db/schema.sql (idempotent)
-npm test                      # 121 tests, needs the database
+npm test                      # 190 tests, needs the database
 ```
 
 Scan any local directory without any GitHub setup:
@@ -51,7 +52,7 @@ The onboarding PR is the whole first act: merge it to activate, close it to decl
 
 ## Deploy
 
-The app is a standard Next.js deployment (built with `--webpack`) plus a Postgres. `vercel.json` ships a 10-minute cron hitting `/api/cron/drain` (set `CRON_SECRET`). Set `REGISTRY_SOURCE` to a raw URL serving the registry JSON, e.g. `https://raw.githubusercontent.com/<you>/aidep-registry/main/registry`. The registry repo needs no deployment: its daily GitHub Actions cron (`.github/workflows/poll.yml`) opens a review PR against itself when a provider page changes; merging the PR is the approval step.
+The app is a standard Next.js deployment (built with `--webpack`) plus a Postgres. `vercel.json` ships a 10-minute cron hitting `/api/cron/drain` (set `CRON_SECRET`). Set `REGISTRY_SOURCE` to a raw URL serving the registry JSON, e.g. `https://raw.githubusercontent.com/aidep-dev/aidep-registry/master/registry`. The registry repo needs no deployment: its daily GitHub Actions cron (`.github/workflows/poll.yml`) opens a review PR against itself when a provider page changes; merging the PR is the approval step.
 
 Two things worth knowing before you pick hosts. Vercel's Hobby plan is non-commercial only, so charging anyone means Pro. And Vercel Postgres no longer exists (those databases moved to Neon in Dec 2024); a findings-only store is tiny, but Neon's free tier autosuspends in a way that does not suit webhook traffic, so Supabase Free is the easier default.
 
