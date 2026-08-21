@@ -67,10 +67,11 @@ This PR adds \`.github/aidep.json\`:
 - \`schedule\`: "daily" or "weekly" scan cadence.
 - \`ignore\`: glob patterns for paths aidep skips.
 - \`prCap\`: max open aidep migration PRs at once (default 5). Retirements within 30 days ignore it.
+- \`notify\`: addresses to email when a scan finds a new exposure or a retirement is inside 30 days. Empty by default, which means nobody is told; put your address here and merge. This is the only way aidep contacts you.
 - \`evals\`: false by default. When true, migration PRs additionally ship an evals/ pack + a GitHub Actions workflow file that runs your prompts on old vs new model in YOUR CI with YOUR keys; you review the extracted test cases in the PR before anything runs. Drafting those cases sends the affected files to Anthropic once each, using our key; leave \`evals\` off and your code never leaves the scan.
 
 Questions? https://aidep.test/handbook
 
 - [ ] <!-- aidep-rebase -->If you want aidep to re-run the scan and refresh this PR, check this box.
-<!-- aidep:body-hash:ec51733cec857b044cb827ccd486a8425ccd48eff0641e2be5ec5754b68a09d2 -->"
+<!-- aidep:body-hash:f578062c13f9063101111b0e735f02bf3c178f9fae084be71885099c3d3d74e4 -->"
 `;

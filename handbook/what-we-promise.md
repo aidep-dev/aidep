@@ -68,6 +68,12 @@ with `evals: true`.
 and discarded. What persists is a path, a line number, a matched identifier, and a
 registry row id. Nothing in our database can reconstruct your code.
 
+**We email only addresses you typed.** The `notify` list in `.github/aidep.json`
+gets a plain-text digest when a scan finds a new exposure or a retirement is inside
+30 days; the waitlist form gets one mail per retirement date inside 14 days. Both
+go through Resend. We never read an email address from GitHub, because that would
+be a fourth permission. Remove the address and the mail stops.
+
 **We never emit hosted prompt references.** OpenAI's own migration guide points at
 reusable prompt objects. `/v1/prompts` shuts down on 2026-11-30. Following the
 official guidance would migrate you into a second migration three months later, so

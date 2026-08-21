@@ -10,6 +10,11 @@ export const AidepConfigSchema = z
     // exempt security updates from theirs.
     prCap: z.number().int().min(1).max(20).default(5),
     evals: z.boolean().default(false),
+    // Who to email about this repo: new exposures after a scan, and
+    // retirements inside the 30-day window. The only push channel. Comes
+    // from the file the owner merges, never from GitHub; reading the
+    // installer's address would be a fourth permission.
+    notify: z.array(z.string().email().max(200)).max(5).default([]),
   })
   .strict();
 

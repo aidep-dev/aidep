@@ -76,6 +76,18 @@ create table if not exists interest (
   created_at timestamptz not null default now()
 );
 
+-- Mail sent, one row per (kind, recipient, subject), so a finding or a date
+-- is announced once. Email is the only push channel; the address comes from
+-- the repo's aidep.json (notify) or the waitlist form, never from GitHub.
+create table if not exists notifications (
+  id bigserial primary key,
+  kind text not null, -- exposure | waitlist
+  recipient text not null,
+  subject_key text not null, -- exposure: repo_id:registry_id; waitlist: the dies date
+  sent_at timestamptz not null default now(),
+  unique (kind, recipient, subject_key)
+);
+
 create table if not exists meta (
   key text primary key,
   value text not null

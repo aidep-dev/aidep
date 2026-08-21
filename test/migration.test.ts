@@ -616,7 +616,8 @@ describe("buildMigrationPr", () => {
       evalSkipReason: null,
       now: "2026-08-16",
       sites: [{ path: "src/legacy.py", line: 4 }],
-      rows: [...MINI_REGISTRY, babbage002],
+      // the mini registry may carry its own babbage-002 row; this test pins one
+      rows: [...MINI_REGISTRY.filter((r) => r.id !== babbage002.id), babbage002],
     });
     expect(built.body).toContain(
       "- trap: `babbage-002` is itself deprecated, dies 2026-09-28; pick its replacement (`gpt-4o-mini`) instead",

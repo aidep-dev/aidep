@@ -4,6 +4,7 @@ import { sql } from "../../../../src/db/index.ts";
 import { drain, MAX_ATTEMPTS } from "../../../../src/jobs.ts";
 import { runJob } from "../../../../src/pipeline.ts";
 import { refreshExposure } from "../../../../src/exposure.ts";
+import { sendDueNotifications } from "../../../../src/notify.ts";
 import { loadRegistry } from "../../../../src/registry.ts";
 
 /**
@@ -105,5 +106,15 @@ export async function GET(req: Request): Promise<Response> {
   }
 
   const r = await drain(runJob, { max: 25 });
-  return Response.json({ enqueued: enqueued.length, registryTriggered, exposure, ...r });
+
+  // After the scans above have written their findings: the push channel.
+  // Idempotent, so running it every ten minutes costs one query when there
+  // is nothing new. A mail failure must not fail the drain.
+  let mailed = { exposure: 0, waitlist: 0 };
+  try {
+    mailed = await sendDueNotifications();
+  } catch (e) {
+    console.error("notifications failed:", e);
+  }
+  return Response.json({ enqueued: enqueued.length, registryTriggered, exposure, mailed, ...r });
 }
