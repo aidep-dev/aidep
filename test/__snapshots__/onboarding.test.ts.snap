@@ -9,6 +9,8 @@ Merge this PR to activate aidep. Close it unmerged to disable aidep on this repo
 
 Scan date: 2026-08-16
 
+**4 findings in 3 files · 2 dead · 2 dying · nearest 2026-08-26 (10 days)**
+
 ## claude-3-5-sonnet-20241022 (anthropic)
 
 **retired 2025-10-28; calls fail today**
@@ -70,5 +72,5 @@ This PR adds \`.github/aidep.json\`:
 Questions? https://aidep.test/handbook
 
 - [ ] <!-- aidep-rebase -->If you want aidep to re-run the scan and refresh this PR, check this box.
-<!-- aidep:body-hash:b0f326cc0c9558fe6342573042f79cba40174ecafc86e623ab92ae3ff3ae4060 -->"
+<!-- aidep:body-hash:ec51733cec857b044cb827ccd486a8425ccd48eff0641e2be5ec5754b68a09d2 -->"
 `;

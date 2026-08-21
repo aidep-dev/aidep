@@ -7,6 +7,8 @@ Repo: acme/fixture-repo
 
 Scan date: 2026-08-16
 
+**21 findings in 7 files · 2 dead · 18 dying · nearest 2026-08-26 (10 days)**
+
 ## claude-3-5-sonnet-20241022 (anthropic)
 
 **retired 2025-10-28; calls fail today**
@@ -47,12 +49,20 @@ Migration guide: https://platform.openai.com/docs/assistants/migration
 | src/assistant_flow.py | 9 | ASSISTANT_ID env var |
 | src/assistant_flow.py | 13 | .beta.threads |
 | src/assistant_flow.py | 14 | .beta.threads |
+
+<details>
+<summary>6 more</summary>
+
+| file | line | matched |
+| --- | --- | --- |
 | src/assistant_flow.py | 17 | .beta.threads |
 | src/assistant_flow.py | 18 | ASSISTANT_ID env var |
 | src/assistant_flow.py | 22 | .beta.threads |
 | src/assistant_flow.py | 23 | .beta.threads |
 | src/assistant_flow.py | 29 | /v1/assistants |
 | src/assistant_flow.py | 32 | OpenAI-Beta: assistants header |
+
+</details>
 
 ## gpt-4-turbo (openai)
 
