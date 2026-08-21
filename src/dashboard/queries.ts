@@ -100,3 +100,17 @@ export function groupByEvent(rows: RepoFindingRow[]): EventGroup[] {
 export function daysUntil(dies: string, today: string): number {
   return Math.round((Date.parse(dies) - Date.parse(today)) / 86_400_000);
 }
+
+/**
+ * Retirements inside this window, or already past, skip prCap.
+ *
+ * Dependabot exempts security updates from open-pull-requests-limit entirely
+ * and Renovate's vulnerability alerts bypass every limit it has; both treat
+ * rate-limiting an urgent fix as the wrong trade. A model that dies this month
+ * is our security update. A cap is spam control, and a deadline is not spam.
+ */
+export const URGENT_WINDOW_DAYS = 30;
+
+export function isUrgentEvent(dies: string | null, today: string): boolean {
+  return dies !== null && daysUntil(dies, today) <= URGENT_WINDOW_DAYS;
+}

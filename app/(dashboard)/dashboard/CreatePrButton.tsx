@@ -2,6 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { z } from "zod";
+
+const ErrorBody = z.object({ error: z.string() });
 
 type State =
   | { step: "idle" }
@@ -36,7 +39,12 @@ export default function CreatePrButton({
       return;
     }
     if (!res.ok) {
-      setState({ step: "error", message: `Could not queue the PR (HTTP ${res.status}).` });
+      // The cap answers 409 with a sentence worth reading; other failures do not.
+      const body = ErrorBody.safeParse(await res.json().catch(() => null));
+      setState({
+        step: "error",
+        message: body.success ? body.data.error : `Could not queue the PR (HTTP ${res.status}).`,
+      });
       return;
     }
     setState({ step: "queued" });

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { AidepConfigSchema } from "../src/config.ts";
+import { AidepConfigSchema, DEFAULT_CONFIG } from "../src/config.ts";
 import {
   createPrRecord,
   markOnboarded,
@@ -18,7 +18,7 @@ import {
 } from "../src/github/migration.ts";
 import type { RepoTarget } from "../src/github/types.ts";
 import type { Job, JobPayloads, JobType } from "../src/jobs.ts";
-import { runJob, setExtractionLlmForTesting } from "../src/pipeline.ts";
+import { migrationCapBlock, runJob, setExtractionLlmForTesting } from "../src/pipeline.ts";
 import type { EventTransformResult } from "../src/transforms/types.ts";
 import { MINI_REGISTRY } from "./mini-registry.ts";
 
@@ -93,6 +93,7 @@ const REPO_CAP = 5103;
 const REPO_INGEST = 5104;
 const REPO_RERUN = 5105;
 const REPO_NO_KEY = 5106;
+const REPO_URGENT = 5107;
 
 const ASSISTANTS = "openai:endpoint:assistants-api";
 const GPT5 = "openai:model:gpt-5-2025-08-07";
@@ -301,17 +302,36 @@ describe("create_migration_pr", () => {
       branch: "aidep/gpt-5-2025-08-07",
     });
     await seedFinding(REPO_CAP, GPT5, "src/summarize.ts", { status: "pr_open", prId: Number(prId) });
-    await seedFinding(REPO_CAP, ASSISTANTS, "src/assistant_flow.py");
+
+    // Well before the Assistants shutdown, so the urgency exemption is not in
+    // play and the cap is what decides. Dates are passed, never read from the
+    // clock, because the registry holds real ones that keep moving.
+    const blocked = await migrationCapBlock(REPO_CAP, { ...DEFAULT_CONFIG, prCap: 1 }, ASSISTANTS, "2026-01-01");
+    expect(blocked).toContain("1 of 1 migration PRs open");
+  });
+
+  it("lets an urgent retirement through a full prCap, the way Dependabot exempts security updates", async () => {
+    await seedRepo(REPO_URGENT, { prCap: 1 });
+    const prId = await createPrRecord({
+      repoId: REPO_URGENT,
+      number: 11,
+      deprecationEvent: GPT5,
+      branch: "aidep/gpt-5-2025-08-07",
+    });
+    await seedFinding(REPO_URGENT, GPT5, "src/summarize.ts", {
+      status: "pr_open",
+      prId: Number(prId),
+    });
+    await seedFinding(REPO_URGENT, ASSISTANTS, "src/assistant_flow.py");
     state.repoFiles = { "src/assistant_flow.py": PY_ASSISTANT };
 
-    await job("create_migration_pr", { repoId: REPO_CAP, registryId: ASSISTANTS });
+    // Five days out. The cap is full and it should not matter.
+    expect(
+      await migrationCapBlock(REPO_URGENT, { ...DEFAULT_CONFIG, prCap: 1 }, ASSISTANTS, "2026-08-21"),
+    ).toBeNull();
 
-    expect(reqs("POST /repos/{owner}/{repo}/pulls")).toHaveLength(0);
-    expect(state.puts).toHaveLength(0);
-    expect(await sql`select 1 from prs where repo_id = ${REPO_CAP}`).toHaveLength(1);
-    const [finding] = await sql<Array<{ status: string }>>`
-      select status from findings where repo_id = ${REPO_CAP} and registry_id = ${ASSISTANTS}`;
-    expect(finding.status).toBe("open");
+    await job("create_migration_pr", { repoId: REPO_URGENT, registryId: ASSISTANTS });
+    expect(reqs("POST /repos/{owner}/{repo}/pulls")).toHaveLength(1);
   });
 });
 

@@ -159,6 +159,20 @@ export async function listOpenFindings(repoId: number): Promise<FindingRow[]> {
     order by dies asc nulls last, path, line`;
 }
 
+/**
+ * Distinct open aidep migration branches. This is what prCap counts, and both
+ * the migrate route (before enqueueing) and the job (before building) ask it,
+ * so the answer has to come from one place.
+ */
+export async function countOpenMigrationPrs(repoId: number): Promise<number> {
+  const [row] = await sql<{ n: number }[]>`
+    select count(distinct p.branch)::int as n
+    from prs p
+    join findings f on f.pr_id = p.id
+    where p.repo_id = ${repoId} and f.status = 'pr_open'`;
+  return row?.n ?? 0;
+}
+
 export async function markFindingsPrOpen(repoId: number, registryId: string, prId: number): Promise<void> {
   // workflow-file findings stay open: the PR deliberately never edits
   // .github/workflows, so those exposures are not addressed by it

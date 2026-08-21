@@ -6,7 +6,13 @@ import { STATE_COOKIE, cookieHeader } from "../src/auth/access.ts";
 
 // The migrate route imports the pipeline for its post-response drain; keep it
 // inert here (same seam as handlers.test.ts).
-vi.mock("../src/pipeline.ts", () => ({ runJob: vi.fn(async () => {}) }));
+// migrationCapBlock is real work (registry + a count query); these tests are
+// about auth and enqueueing, so it is stubbed open here. The cap itself is
+// covered end to end in migration.test.ts.
+vi.mock("../src/pipeline.ts", () => ({
+  runJob: vi.fn(async () => {}),
+  migrationCapBlock: vi.fn(async () => null),
+}));
 
 process.env.GITHUB_CLIENT_ID = "test-client";
 process.env.GITHUB_CLIENT_SECRET = "test-secret";

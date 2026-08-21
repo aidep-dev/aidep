@@ -5,7 +5,10 @@ export const AidepConfigSchema = z
   .object({
     schedule: z.enum(["daily", "weekly"]).default("daily"),
     ignore: z.array(z.string().max(200)).max(100).default([]),
-    prCap: z.number().int().min(1).max(20).default(3),
+    // 5 matches Dependabot's open-pull-requests-limit. Urgent retirements are
+    // exempt from it (see isUrgentEvent), the way both Dependabot and Renovate
+    // exempt security updates from theirs.
+    prCap: z.number().int().min(1).max(20).default(5),
     evals: z.boolean().default(false),
   })
   .strict();

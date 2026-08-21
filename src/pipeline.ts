@@ -3,6 +3,7 @@ import { gunzipSync } from "node:zlib";
 import { z } from "zod";
 import { DEFAULT_CONFIG, parseConfig, type AidepConfig } from "./config.ts";
 import {
+  countOpenMigrationPrs,
   createPrRecord,
   createScan,
   finishScan,
@@ -19,6 +20,7 @@ import {
   type FindingRow,
   type RepoRow,
 } from "./db/index.ts";
+import { isUrgentEvent, URGENT_WINDOW_DAYS } from "./dashboard/queries.ts";
 import { anthropicLlm, extractCases } from "./evalgen/extract.ts";
 import { generateEvalPack } from "./evalgen/pack.ts";
 import type { GeneratedFile, Llm } from "./evalgen/types.ts";
@@ -447,6 +449,31 @@ async function buildMigrationForEvent(
   return { event, built, shippedEvalPack: pack !== null };
 }
 
+/**
+ * The prCap decision, asked in two places: by the migrate route before it
+ * enqueues, so the user hears "you are at your cap" instead of watching a
+ * button do nothing, and by the job before it builds, because a queue can hold
+ * more requests than the cap allows by the time it drains.
+ *
+ * Returns null when the PR may proceed, otherwise a sentence for the user.
+ */
+export async function migrationCapBlock(
+  repoId: number,
+  config: AidepConfig,
+  registryId: string,
+  // Injected like `now` elsewhere in this file: the registry holds real dates,
+  // so a test that reads the clock would flip as those dates pass.
+  today: string = new Date().toISOString().slice(0, 10),
+): Promise<string | null> {
+  const rows = await loadRegistry();
+  const dies = rows.find((r) => r.id === registryId)?.dies ?? null;
+  if (isUrgentEvent(dies, today)) return null;
+
+  const open = await countOpenMigrationPrs(repoId);
+  if (open < config.prCap) return null;
+  return `You have ${open} of ${config.prCap} migration PRs open. Merge or close one, or raise prCap in .github/aidep.json. Retirements within ${URGENT_WINDOW_DAYS} days ignore this cap.`;
+}
+
 export async function createMigrationPr(repoId: number, registryId: string): Promise<void> {
   if (!Number.isFinite(repoId) || registryId === "") {
     console.log("create_migration_pr: bad payload, skipping");
@@ -459,15 +486,9 @@ export async function createMigrationPr(repoId: number, registryId: string): Pro
   }
   const config = repo.config ?? DEFAULT_CONFIG;
 
-  // prCap: open aidep migration PRs = distinct branches whose findings are
-  // still pr_open. The job succeeds either way; the dashboard reflects the cap.
-  const [{ n }] = await sql<{ n: number }[]>`
-    select count(distinct p.branch)::int as n
-    from prs p
-    join findings f on f.pr_id = p.id
-    where p.repo_id = ${repoId} and f.status = 'pr_open'`;
-  if (n >= config.prCap) {
-    console.log(`create_migration_pr: repo ${repoId} at prCap (${n}/${config.prCap}), skipping`);
+  const capped = await migrationCapBlock(repoId, config, registryId);
+  if (capped !== null) {
+    console.log(`create_migration_pr: repo ${repoId} ${capped}`);
     return;
   }
 

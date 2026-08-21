@@ -1,8 +1,9 @@
 import { after } from "next/server.js";
 import { z } from "zod";
 import { getSessionFromCookies, requireRepoAccess } from "../../../../../src/auth/access.ts";
+import { DEFAULT_CONFIG } from "../../../../../src/config.ts";
 import { drain, enqueue } from "../../../../../src/jobs.ts";
-import { runJob } from "../../../../../src/pipeline.ts";
+import { migrationCapBlock, runJob } from "../../../../../src/pipeline.ts";
 import { RegistryRowSchema } from "../../../../../src/registry.ts";
 
 const Body = z.object({ registryId: RegistryRowSchema.shape.id });
@@ -31,6 +32,15 @@ export async function POST(
   const repoId = Number((await params).repoId);
   const { repo, allowed } = await requireRepoAccess(session, repoId);
   if (!repo || !allowed) return new Response("forbidden", { status: 403 });
+
+  // Answered here, not only in the job, so a capped request gets a reason
+  // instead of a button that appears to work and then does nothing.
+  const capped = await migrationCapBlock(
+    repoId,
+    repo.config ?? DEFAULT_CONFIG,
+    parsed.data.registryId,
+  );
+  if (capped !== null) return Response.json({ error: capped }, { status: 409 });
 
   // Migration PRs are free on every repo, public or private. The paid line is
   // the eval pack, gated in evalPackFor where the pack is actually built.
