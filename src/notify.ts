@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { Resend } from "resend";
 import { DEFAULT_CONFIG, AidepConfigSchema } from "./config.ts";
 import { isUrgentEvent, URGENT_WINDOW_DAYS } from "./dashboard/queries.ts";
@@ -19,7 +20,10 @@ import { loadRegistry, type RegistryRow } from "./registry.ts";
  *             within 14 days, once per date
  *
  * aidep never opens a PR or an issue it was not asked for; mail goes only to
- * addresses someone typed into a file they merged or a form they submitted.
+ * addresses someone typed into a file they merged or a form they submitted,
+ * and only after that address clicked a confirmation link: the person who
+ * typed it is not always the person who receives it (security review
+ * 2026-08-21, findings 1 and 2). One confirmation mail per address, ever.
  */
 
 export interface Mail {
@@ -48,6 +52,52 @@ export function resendMailer(): Mailer {
 
 const WAITLIST_WINDOW_DAYS = 14;
 const APP_URL = () => process.env.APP_URL ?? "https://aidep.example";
+
+/** Stateless confirmation token: HMAC of the lowercased address under the
+ * session secret, so the link needs no row and cannot be forged. */
+export function confirmToken(email: string): string {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) throw new Error("SESSION_SECRET must be set");
+  return createHmac("sha256", secret).update(email.toLowerCase()).digest("base64url");
+}
+
+export function confirmTokenMatches(email: string, token: string): boolean {
+  const expected = Buffer.from(confirmToken(email));
+  const got = Buffer.from(token);
+  return got.length === expected.length && timingSafeEqual(got, expected);
+}
+
+export function confirmUrl(email: string): string {
+  const u = new URL("/api/notify/confirm", APP_URL());
+  u.searchParams.set("e", email.toLowerCase());
+  u.searchParams.set("t", confirmToken(email));
+  return u.toString();
+}
+
+export async function confirmAddress(email: string): Promise<void> {
+  await sql`insert into confirmed_addresses (email) values (${email.toLowerCase()}) on conflict do nothing`;
+}
+
+async function confirmedSet(emails: string[]): Promise<Set<string>> {
+  if (emails.length === 0) return new Set();
+  const rows = await sql<{ email: string }[]>`
+    select email from confirmed_addresses where email = any(${emails})`;
+  return new Set(rows.map((r) => r.email));
+}
+
+function confirmMail(to: string, why: string): Mail {
+  return {
+    to,
+    subject: "Confirm your address for aidep",
+    text: [
+      `Someone ${why}. If that was you, confirm here and aidep will write when it matters:`,
+      "",
+      confirmUrl(to),
+      "",
+      "If it was not you, do nothing. This is the only mail this address gets until the link is clicked.",
+    ].join("\n"),
+  };
+}
 
 function daysUntil(dies: string, today: string): number {
   return Math.round((Date.parse(dies) - Date.parse(today)) / 86_400_000);
@@ -161,7 +211,7 @@ export async function sendDueNotifications(opts: {
   mailer?: Mailer;
   rows?: RegistryRow[];
   now?: string;
-} = {}): Promise<{ exposure: number; waitlist: number }> {
+} = {}): Promise<{ exposure: number; waitlist: number; confirmations: number }> {
   const mailer = opts.mailer ?? resendMailer();
   const today = opts.now ?? new Date().toISOString().slice(0, 10);
   const rows = opts.rows ?? (await loadRegistry());
@@ -177,9 +227,20 @@ export async function sendDueNotifications(opts: {
     list.push(e);
     byRepo.set(e.repo_id, list);
   }
+  const notifyAddresses = [...new Set([...byRepo.values()].flatMap((es) => es[0].notify.map((a) => a.toLowerCase())))];
+  const confirmed = await confirmedSet(notifyAddresses);
+  let confirmations = 0;
   for (const events of byRepo.values()) {
     const repo = events[0];
-    for (const to of repo.notify) {
+    for (const to of repo.notify.map((a) => a.toLowerCase())) {
+      if (!confirmed.has(to)) {
+        if ((await alreadySent("confirm", to, ["confirm"])).size === 0) {
+          await mailer(confirmMail(to, `put this address in .github/aidep.json on ${repo.owner}/${repo.name}`));
+          await record("confirm", to, ["confirm"]);
+          confirmations++;
+        }
+        continue;
+      }
       const keys = events.map((e) => `${e.repo_id}:${e.registry_id}`);
       const sent = await alreadySent("exposure", to, keys);
       const fresh = events.filter((e) => !sent.has(`${e.repo_id}:${e.registry_id}`));
@@ -201,9 +262,21 @@ export async function sendDueNotifications(opts: {
     dates.set(r.dies, list);
   }
   if (dates.size > 0) {
-    const emails = await sql<{ email: string }[]>`
-      select distinct email from interest where email is not null and source = 'landing-waitlist'`;
-    for (const { email } of emails) {
+    const emails = (
+      await sql<{ email: string }[]>`
+        select distinct lower(email) as email from interest
+        where email is not null and source = 'landing-waitlist'`
+    ).map((r) => r.email);
+    const confirmedWaiters = await confirmedSet(emails);
+    for (const email of emails) {
+      if (!confirmedWaiters.has(email)) {
+        if ((await alreadySent("confirm", email, ["confirm"])).size === 0) {
+          await mailer(confirmMail(email, "left this address on aidep.dev asking to hear when a retirement date gets close"));
+          await record("confirm", email, ["confirm"]);
+          confirmations++;
+        }
+        continue;
+      }
       const sent = await alreadySent("waitlist", email, [...dates.keys()]);
       for (const [dies, dying] of dates) {
         if (sent.has(dies)) continue;
@@ -226,7 +299,7 @@ export async function sendDueNotifications(opts: {
     }
   }
 
-  return { exposure, waitlist };
+  return { exposure, waitlist, confirmations };
 }
 
 /** Exposure mail covers events inside this window with an urgent subject. */

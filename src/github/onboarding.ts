@@ -56,7 +56,7 @@ export function buildOnboardingPr(input: OnboardInput): OnboardingPrContent {
     '- `schedule`: "daily" or "weekly" scan cadence.',
     "- `ignore`: glob patterns for paths aidep skips.",
     "- `prCap`: max open aidep migration PRs at once (default 5). Retirements within 30 days ignore it.",
-    '- `notify`: addresses to email when a scan finds a new exposure or a retirement is inside 30 days. Empty by default, which means nobody is told; put your address here and merge. This is the only way aidep contacts you.',
+    '- `notify`: addresses to email when a scan finds a new exposure or a retirement is inside 30 days. Empty by default, which means nobody is told; put your address here and merge; a one-time confirmation link arrives first. This is the only way aidep contacts you.',
     "- `evals`: false by default. When true, migration PRs additionally ship an evals/ pack + a GitHub Actions workflow file that runs your prompts on old vs new model in YOUR CI with YOUR keys; you review the extracted test cases in the PR before anything runs. Drafting those cases sends the affected files to Anthropic once each, using our key; leave `evals` off and your code never leaves the scan.",
     "",
     `Questions? ${appUrl}/handbook`,

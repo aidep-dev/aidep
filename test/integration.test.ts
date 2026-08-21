@@ -274,7 +274,7 @@ describe("cron drain route", () => {
 
     const res = await get("Bearer cron-secret-40");
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ enqueued: 1, registryTriggered: 0, exposure: { updated: 0, skipped: 0 }, mailed: { exposure: 0, waitlist: 0 }, ran: 1, failed: 0 });
+    expect(await res.json()).toEqual({ enqueued: 1, registryTriggered: 0, exposure: { updated: 0, skipped: 0 }, mailed: { exposure: 0, waitlist: 0, confirmations: 0 }, ran: 1, failed: 0 });
 
     // the one job was for the stale daily repo and the drain ran it
     const jobs = await sql<{ payload: { repoId: number }; status: string }[]>`
@@ -287,7 +287,7 @@ describe("cron drain route", () => {
 
     // freshly scanned: a second call enqueues nothing
     const res2 = await get("Bearer cron-secret-40");
-    expect(await res2.json()).toEqual({ enqueued: 0, registryTriggered: 0, exposure: { updated: 0, skipped: 0 }, mailed: { exposure: 0, waitlist: 0 }, ran: 0, failed: 0 });
+    expect(await res2.json()).toEqual({ enqueued: 0, registryTriggered: 0, exposure: { updated: 0, skipped: 0 }, mailed: { exposure: 0, waitlist: 0, confirmations: 0 }, ran: 0, failed: 0 });
   });
 
   it("registry change triggers rescans for all onboarded repos", async () => {
@@ -306,7 +306,7 @@ describe("cron drain route", () => {
 
     // hash settled: the next call is quiet again
     const res2 = await get("Bearer cron-secret-40");
-    expect(await res2.json()).toEqual({ enqueued: 0, registryTriggered: 0, exposure: { updated: 0, skipped: 0 }, mailed: { exposure: 0, waitlist: 0 }, ran: 0, failed: 0 });
+    expect(await res2.json()).toEqual({ enqueued: 0, registryTriggered: 0, exposure: { updated: 0, skipped: 0 }, mailed: { exposure: 0, waitlist: 0, confirmations: 0 }, ran: 0, failed: 0 });
   });
 
   it("does not double-enqueue when a scan job is already queued", async () => {
@@ -318,7 +318,7 @@ describe("cron drain route", () => {
 
     const res = await get("Bearer cron-secret-40");
     // enqueued nothing new; the drain ran the pre-existing queued job
-    expect(await res.json()).toEqual({ enqueued: 0, registryTriggered: 0, exposure: { updated: 0, skipped: 0 }, mailed: { exposure: 0, waitlist: 0 }, ran: 1, failed: 0 });
+    expect(await res.json()).toEqual({ enqueued: 0, registryTriggered: 0, exposure: { updated: 0, skipped: 0 }, mailed: { exposure: 0, waitlist: 0, confirmations: 0 }, ran: 1, failed: 0 });
   });
 
   it("does not enqueue when a scan job is already running for the repo", async () => {

@@ -90,6 +90,13 @@ create table if not exists notifications (
   unique (kind, recipient, subject_key)
 );
 
+-- Addresses that clicked the confirmation link. Nothing but the one
+-- confirmation mail is ever sent to an address that is not in here.
+create table if not exists confirmed_addresses (
+  email text primary key,
+  confirmed_at timestamptz not null default now()
+);
+
 create table if not exists meta (
   key text primary key,
   value text not null

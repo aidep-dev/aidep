@@ -110,7 +110,7 @@ export async function GET(req: Request): Promise<Response> {
   // After the scans above have written their findings: the push channel.
   // Idempotent, so running it every ten minutes costs one query when there
   // is nothing new. A mail failure must not fail the drain.
-  let mailed = { exposure: 0, waitlist: 0 };
+  let mailed = { exposure: 0, waitlist: 0, confirmations: 0 };
   try {
     mailed = await sendDueNotifications();
   } catch (e) {

@@ -2,8 +2,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AidepConfigSchema } from "../src/config.ts";
 import { markOnboarded, sql, upsertInstallation, upsertRepo } from "../src/db/index.ts";
 import { migrate } from "../src/db/migrate.ts";
-import { sendDueNotifications, type Mail } from "../src/notify.ts";
+import { GET as confirmRoute } from "../app/api/notify/confirm/route.ts";
+import { confirmAddress, confirmUrl, sendDueNotifications, type Mail, type Mailer } from "../src/notify.ts";
 import { MINI_REGISTRY } from "./mini-registry.ts";
+
+process.env.SESSION_SECRET ??= "test-session-secret";
 
 // id range owned by this file: installations 80xx, repos 81xx
 const INST = 8001;
@@ -23,9 +26,10 @@ async function seedFinding(repoId: number, registryId: string, path: string, die
     values (${repoId}, ${registryId}, ${registryId.split(":")[1]}, ${path}, 1, ${registryId.split(":")[2]}, ${dies})`;
 }
 
-function collect(): { mails: Mail[]; mailer: (m: Mail) => Promise<void> } {
+function collect() {
   const mails: Mail[] = [];
-  return { mails, mailer: async (m) => void mails.push(m) };
+  const mailer: Mailer = async (m) => void mails.push(m);
+  return { mails, mailer };
 }
 
 beforeAll(async () => {
@@ -40,6 +44,11 @@ beforeEach(async () => {
   await sql`delete from installations where id between 8000 and 8999`;
   await sql`delete from notifications where recipient like ${`%@${DOMAIN}`}`;
   await sql`delete from interest where email like ${`%@${DOMAIN}`}`;
+  await sql`delete from confirmed_addresses where email like ${`%@${DOMAIN}`}`;
+  // the exposure and waitlist cases start from confirmed addresses; the
+  // confirmation flow has its own cases below
+  await confirmAddress(OWNER);
+  await confirmAddress(WAITER);
   await upsertInstallation(INST, "acme");
   await upsertRepo({ id: REPO, installationId: INST, owner: "acme", name: "bot", defaultBranch: "main" });
   await upsertRepo({ id: REPO_SILENT, installationId: INST, owner: "acme", name: "quiet", defaultBranch: "main" });
@@ -95,6 +104,56 @@ describe("exposure mail", () => {
     const { mails, mailer } = collect();
     await sendDueNotifications({ mailer, rows: MINI_REGISTRY, now: TODAY });
     expect(mails).toHaveLength(1);
+  });
+});
+
+describe("confirmation", () => {
+  const NEW = `New.Person@${DOMAIN}`;
+
+  it("sends one confirmation to an unconfirmed notify address and no digest, then the digest once confirmed", async () => {
+    await markOnboarded(REPO, AidepConfigSchema.parse({ notify: [NEW] }));
+    const { mails, mailer } = collect();
+    const first = await sendDueNotifications({ mailer, rows: MINI_REGISTRY, now: TODAY });
+    expect(first).toEqual({ exposure: 0, waitlist: 0, confirmations: 1 });
+    expect(mails).toHaveLength(1);
+    expect(mails[0].to).toBe(NEW.toLowerCase());
+    expect(mails[0].subject).toBe("Confirm your address for aidep");
+    expect(mails[0].text).toContain("acme/bot");
+    expect(mails[0].text).not.toContain("src/assist.py");
+
+    // nothing more until the link is clicked, not even a second confirmation
+    const again = await sendDueNotifications({ mailer, rows: MINI_REGISTRY, now: TODAY });
+    expect(again).toEqual({ exposure: 0, waitlist: 0, confirmations: 0 });
+    expect(mails).toHaveLength(1);
+
+    const res = await confirmRoute(new Request(confirmUrl(NEW)));
+    expect(res.status).toBe(200);
+    const third = await sendDueNotifications({ mailer, rows: MINI_REGISTRY, now: TODAY });
+    expect(third.exposure).toBe(1);
+    expect(mails[1].to).toBe(NEW.toLowerCase());
+    expect(mails[1].text).toContain("src/assist.py");
+  });
+
+  it("rejects a forged or mismatched token", async () => {
+    const good = new URL(confirmUrl(NEW));
+    const forged = new URL(good);
+    forged.searchParams.set("t", good.searchParams.get("t")!.replace(/.$/, (c) => (c === "A" ? "B" : "A")));
+    expect((await confirmRoute(new Request(forged))).status).toBe(400);
+    const swapped = new URL(good);
+    swapped.searchParams.set("e", `other@${DOMAIN}`);
+    expect((await confirmRoute(new Request(swapped))).status).toBe(400);
+    expect((await confirmRoute(new Request("http://x/api/notify/confirm"))).status).toBe(400);
+    const rows = await sql`select 1 from confirmed_addresses where email like ${`%@${DOMAIN}`} and email not in (${OWNER}, ${WAITER})`;
+    expect(rows).toHaveLength(0);
+  });
+
+  it("asks a waitlist address to confirm before any date mail", async () => {
+    const w = `curious@${DOMAIN}`;
+    await sql`insert into interest (email, source) values (${w}, 'landing-waitlist')`;
+    const { mails, mailer } = collect();
+    const r = await sendDueNotifications({ mailer, rows: MINI_REGISTRY, now: TODAY });
+    expect(r.confirmations).toBe(1);
+    expect(mails.filter((m) => m.to === w).map((m) => m.subject)).toEqual(["Confirm your address for aidep"]);
   });
 });
 
