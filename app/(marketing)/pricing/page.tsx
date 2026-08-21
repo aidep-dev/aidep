@@ -63,6 +63,10 @@ export default function PricingPage() {
             </li>
           </ul>
           <UpgradeButton />
+          <p className="mt-3 text-xs text-ink-muted">
+            Leave an address and we reply by hand. No card here yet; the first orgs are set up one
+            at a time.
+          </p>
         </section>
       </div>
 
