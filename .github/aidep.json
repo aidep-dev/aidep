@@ -1,0 +1,6 @@
+{
+  "schedule": "daily",
+  "ignore": ["test/**"],
+  "prCap": 5,
+  "evals": true
+}
