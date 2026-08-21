@@ -12,8 +12,8 @@ what OpenAI's own Assistants migration guide tells you to migrate *to*. The thes
 gets tested on a schedule, in public, on that day.
 
 One paying org is the whole revenue goal, and it is not modesty. Fixed hosting is $20 to $45 a
-month. One aidep Proof subscription at $99 covers it several times over. Past that we are default
-alive and can keep the rest free forever without it being a favour anyone can withdraw.
+month. One aidep Proof subscription at $39 covers most of it. Past that we are default alive and
+can keep the rest free forever without it being a favour anyone can withdraw.
 
 100 repos is the number that is actually hard. Today it is 0.
 
@@ -45,13 +45,15 @@ Replacement chains rot, and an agent will say "done" either way.
 
 **The app is open source too**, eval pack included. There is no held-back edition. Self-hosting it
 means running your own Postgres, registering your own GitHub App, holding your own Anthropic key
-and keeping your own registry current, which is more work than $99 a month. Pretending otherwise
+and keeping your own registry current, which is more work than $39 a month. Pretending otherwise
 would cost the claim and buy nothing.
 
 **Free, forever, on every repo public or private:** scanning, deprecation alerts, the onboarding
 audit PR, and the migration PRs themselves. No cap, no card.
 
-**Paid, one line:** aidep Proof, $99 per org per month, flat. It runs your repo's own prompts
+**Paid, one line:** aidep Proof, $39 per org per month, flat, derived from the engineer time a
+year of deprecations costs you rather than picked. The working is on the pricing page and in the
+handbook. It runs your repo's own prompts
 against the old model and the new one, in your CI, on your keys, and reports held-or-drifted per
 prompt before you merge. That is the part with real marginal cost and the part that gets the PR
 merged.
