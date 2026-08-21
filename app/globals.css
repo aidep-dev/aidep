@@ -1,9 +1,22 @@
 @import "tailwindcss";
 
-/* aidep design tokens: editorial broadsheet on warm paper. Near-monochrome
- * ink; red and amber are reserved status colors (dead / dying) and never
- * decoration. Status is never color alone: chips always carry a text label. */
+/* aidep design tokens: editorial broadsheet, printed on warm paper by day and
+ * on black newsprint by night. Near-monochrome ink; red, amber and green are
+ * reserved status colors (dead / dying / clean) and never decoration. Status is
+ * never color alone: chips always carry a text label.
+ *
+ * Three theme states, the GitHub model:
+ *   no attribute          follow the OS (prefers-color-scheme)
+ *   data-theme="light"    force light, even on a dark OS
+ *   data-theme="dark"     force dark, even on a light OS
+ *
+ * The dark values appear twice on purpose. The media block serves readers with
+ * no JavaScript and no stored choice; the attribute block lets an explicit
+ * choice win in both directions. Keep the two lists identical. */
+
 :root {
+  color-scheme: light;
+
   --paper: oklch(97.5% 0.006 95);
   --paper-raised: oklch(99% 0.004 95);
   --ink: oklch(24% 0.015 80);
@@ -17,6 +30,44 @@
   --clean: oklch(48% 0.09 155);
   --clean-bg: oklch(95.5% 0.03 155);
   --link: oklch(45% 0.09 240);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --paper: oklch(17% 0.008 85);
+    --paper-raised: oklch(21% 0.008 85);
+    --ink: oklch(93% 0.008 90);
+    --ink-secondary: oklch(76% 0.01 85);
+    --ink-muted: oklch(62% 0.01 85);
+    --rule: oklch(32% 0.008 85);
+    --dead: oklch(70% 0.15 27);
+    --dead-bg: oklch(28% 0.055 27);
+    --dying: oklch(78% 0.12 80);
+    --dying-bg: oklch(29% 0.05 80);
+    --clean: oklch(72% 0.11 155);
+    --clean-bg: oklch(27% 0.045 155);
+    --link: oklch(74% 0.11 240);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --paper: oklch(17% 0.008 85);
+  --paper-raised: oklch(21% 0.008 85);
+  --ink: oklch(93% 0.008 90);
+  --ink-secondary: oklch(76% 0.01 85);
+  --ink-muted: oklch(62% 0.01 85);
+  --rule: oklch(32% 0.008 85);
+  --dead: oklch(70% 0.15 27);
+  --dead-bg: oklch(28% 0.055 27);
+  --dying: oklch(78% 0.12 80);
+  --dying-bg: oklch(29% 0.05 80);
+  --clean: oklch(72% 0.11 155);
+  --clean-bg: oklch(27% 0.045 155);
+  --link: oklch(74% 0.11 240);
 }
 
 @theme inline {
@@ -47,4 +98,136 @@ h1,
 h2,
 h3 {
   font-family: var(--font-display), serif;
+}
+
+/* Styles the HTML that `marked` renders from handbook/*.md. Tokens only, no
+ * typography plugin: the rules here are the same ones the hand-built pages
+ * follow, so a handbook page and /security read as the same document. */
+.handbook-prose h1 {
+  font-size: 2.25rem;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.handbook-prose h2 {
+  font-size: 1.5rem;
+  color: var(--ink);
+  margin-top: 3.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--rule);
+}
+
+.handbook-prose h3 {
+  font-size: 1.125rem;
+  color: var(--ink);
+  margin-top: 2rem;
+}
+
+.handbook-prose p,
+.handbook-prose li {
+  color: var(--ink-secondary);
+  line-height: 1.7;
+}
+
+.handbook-prose p {
+  margin-top: 1rem;
+}
+
+.handbook-prose ul,
+.handbook-prose ol {
+  margin-top: 1rem;
+  padding-left: 1.25rem;
+}
+
+.handbook-prose ul {
+  list-style: disc;
+}
+
+.handbook-prose ol {
+  list-style: decimal;
+}
+
+.handbook-prose li {
+  margin-top: 0.5rem;
+}
+
+.handbook-prose strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.handbook-prose a {
+  color: var(--link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.handbook-prose code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.875em;
+  color: var(--ink);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: 0.125rem;
+  padding: 0.05em 0.3em;
+}
+
+.handbook-prose pre {
+  margin-top: 1.25rem;
+  padding: 1rem;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: 0.125rem;
+  overflow-x: auto;
+}
+
+/* the <pre> already carries the surface; the inner <code> must not double it */
+.handbook-prose pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--ink-secondary);
+}
+
+.handbook-prose blockquote {
+  margin-top: 1.25rem;
+  padding-left: 1rem;
+  border-left: 2px solid var(--rule);
+  color: var(--ink-muted);
+}
+
+.handbook-prose hr {
+  margin-top: 2.5rem;
+  border-color: var(--rule);
+}
+
+/* A wide table scrolls inside itself rather than scrolling the page. */
+.handbook-prose table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  margin-top: 1.25rem;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.handbook-prose th,
+.handbook-prose td {
+  border-bottom: 1px solid var(--rule);
+  padding: 0.5rem 1rem 0.5rem 0;
+  text-align: left;
+}
+
+.handbook-prose th {
+  color: var(--ink-muted);
+  font-weight: 500;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.handbook-prose td {
+  color: var(--ink-secondary);
 }

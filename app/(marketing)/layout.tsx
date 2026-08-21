@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ThemeToggle } from "../theme.tsx";
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -12,12 +13,16 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
             <Link href="/dead" className="text-ink-secondary hover:text-ink">
               What is dead
             </Link>
+            <Link href="/handbook" className="text-ink-secondary hover:text-ink">
+              Handbook
+            </Link>
             <Link href="/security" className="text-ink-secondary hover:text-ink">
               Security
             </Link>
             <Link href="/pricing" className="text-ink-secondary hover:text-ink">
               Pricing
             </Link>
+            <ThemeToggle />
             <Link
               href="/dashboard"
               className="border border-rule px-3 py-1.5 text-ink-secondary hover:border-ink-muted hover:text-ink"
