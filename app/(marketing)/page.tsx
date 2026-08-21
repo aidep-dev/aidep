@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { impactFigures } from "../../src/exposure.ts";
 import { loadRegistry, type RegistryRow } from "../../src/registry.ts";
 import { Mark } from "../mark.tsx";
 import { daysLabel, daysUntil, formatDies } from "./dates.ts";
@@ -45,7 +46,7 @@ function Kicker({ children }: { children: React.ReactNode }) {
 }
 
 export default async function LandingPage() {
-  const rows = await loadRegistry();
+  const [rows, impact] = await Promise.all([loadRegistry(), impactFigures()]);
   const now = new Date();
 
   // One row per retirement date. Six Sora variants sharing 2026-09-24 is one
@@ -67,6 +68,16 @@ export default async function LandingPage() {
     (r): r is RegistryRow => r !== undefined,
   );
   const futureRows = rows.filter((r) => r.dies !== null && daysUntil(r.dies, now) >= 0).length;
+  // Rows whose named replacement is itself in the registry. replacement_id is a
+  // bare api id ("gpt-4o-mini"), not a registry id, so it is matched against
+  // every row's api_ids. Every registry row is deprecated or retired, so a hit
+  // is a rotted replacement by definition. This is the number the "why not my
+  // agent" section rests on, so it is computed, not typed.
+  const withReplacement = rows.filter((r) => r.replacement_id !== null);
+  const knownApiIds = new Set(rows.flatMap((r) => r.api_ids));
+  const rottedReplacements = withReplacement.filter((r) =>
+    knownApiIds.has(r.replacement_id as string),
+  ).length;
   const datesThisYear = new Set(
     rows.map((r) => r.dies).filter((d): d is string => d !== null && d.startsWith(String(now.getFullYear()))),
   ).size;
@@ -290,10 +301,13 @@ drifted  extract_line_items`}
               training cutoff.
             </p>
             <p>
-              Of the 174 registry rows that name a replacement,{" "}
-              <span className="text-ink">29 name a replacement that is itself already deprecated</span>.
-              One in six. An agent working from last year&rsquo;s docs lands on a dead target that
-              often, then says &ldquo;done.&rdquo;
+              Of the {withReplacement.length} registry rows that name a replacement,{" "}
+              <span className="text-ink">
+                {rottedReplacements} name a replacement that is itself already deprecated
+              </span>
+              . One in {Math.round(withReplacement.length / Math.max(rottedReplacements, 1))}. An
+              agent working from last year&rsquo;s docs lands on a dead target that often, then
+              says &ldquo;done.&rdquo;
             </p>
             <p className="label text-ink-muted">
               aidep tells it when, and tells it what is true today.{" "}
@@ -330,11 +344,30 @@ drifted  extract_line_items`}
             </div>
           </div>
 
+          {/* Reach, not trivia. Each figure is a sum over public code-search
+           * counts or a row count in our own tables, so the band gets truer as
+           * the product is used. The registry facts live in the hero band. */}
           <div className="mt-20 grid grid-cols-2 gap-4 text-left md:grid-cols-4">
-            <Card n={String(rows.length)} label="deprecations on file" sub="one vendor source each" />
-            <Card n={String(datesThisYear)} label="retirement dates in 2026" sub="6 in 2024, 14 in 2025" />
-            <Card n={String(futureRows)} label="still ahead" sub="dated by the provider" />
-            <Card n="3" label="github permissions" sub="and never a fourth" />
+            <Card
+              n={impact.exposedFiles.toLocaleString("en-US")}
+              label="public files exposed"
+              sub={`across ${impact.queriesCounted} identifiers, counted`}
+            />
+            <Card
+              n={String(datesThisYear)}
+              label="retirement dates this year"
+              sub="6 in 2024, 14 in 2025"
+            />
+            <Card
+              n={impact.reposWatched.toLocaleString("en-US")}
+              label="repos under watch"
+              sub="onboarded, scanning daily"
+            />
+            <Card
+              n={`${rottedReplacements} / ${withReplacement.length}`}
+              label="replacements already dying"
+              sub="what an agent would pick"
+            />
           </div>
         </div>
       </section>
