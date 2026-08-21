@@ -1,0 +1,22 @@
+name: health
+# The two sensitive keys (ANTHROPIC_API_KEY, GITHUB_SEARCH_TOKEN) cannot be
+# read back out of Vercel, so a dead one fails silently: eval packs skip and
+# /dead freezes. /api/check probes both from inside the deployment; this
+# asks it once a day and fails the run on any probe that is not ok. GitHub
+# mails the repo owner about a failed scheduled run, which is the alert.
+on:
+  schedule:
+    - cron: "23 7 * * *"
+  workflow_dispatch:
+permissions: {}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe the keys from inside the deployment
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          body=$(curl -sS --fail-with-body -H "authorization: Bearer $CRON_SECRET" https://aidep.dev/api/check)
+          echo "$body" | jq .
+          echo "$body" | jq -e '.anthropic.ok and .search.ok' > /dev/null
