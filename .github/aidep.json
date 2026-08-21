@@ -1,0 +1,6 @@
+{
+  "schedule": "daily",
+  "ignore": [],
+  "prCap": 5,
+  "evals": false
+}
