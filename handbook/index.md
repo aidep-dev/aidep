@@ -32,7 +32,8 @@ Two things an agent structurally cannot do:
 
 **An agent is pull. Deprecations are push.** You have to know to ask. Nobody wakes
 up on the fifteenth of October and thinks to check for retired model ids. That is
-the entire reason 308,224 public files still pin a model that died in 2025.
+the entire reason hundreds of thousands of public files still pin a model that
+died in 2025 ([the counts, with the searches behind them](/dead)).
 
 **The model's knowledge is frozen exactly where it needs to be current.** Training
 cutoffs come before deprecations, by construction. Ask an agent to migrate you off

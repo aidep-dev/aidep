@@ -71,6 +71,18 @@ export default function SecurityPage() {
       </section>
 
       <section className="mt-12 border-t border-rule pt-6">
+        <h2 className="text-2xl">Your inbox</h2>
+        <p className="mt-3 max-w-xl leading-relaxed text-ink-secondary">
+          We hold an email address only if you typed it: into <code>notify</code> in{" "}
+          <code>.github/aidep.json</code>, or the waitlist form. It gets one confirmation mail with
+          a link and nothing else until the link is clicked. After that, a plain-text digest when a
+          scan finds a new exposure or a retirement is inside 30 days, sent through Resend. We never
+          read an address from GitHub; that would be a fourth permission. Remove the address and the
+          mail stops.
+        </p>
+      </section>
+
+      <section className="mt-12 border-t border-rule pt-6">
         <h2 className="text-2xl">Your keys</h2>
         <p className="mt-3 max-w-xl leading-relaxed text-ink-secondary">
           The eval runs happen in your CI with your keys. We never hold the keys that run your
