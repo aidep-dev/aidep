@@ -65,7 +65,7 @@ export function ThemeToggle() {
       type="button"
       onClick={() => write(NEXT[theme])}
       aria-label={`Theme: ${LABEL[theme].toLowerCase()}. Activate to switch to ${LABEL[NEXT[theme]].toLowerCase()}.`}
-      className="text-ink-secondary hover:text-ink"
+      className="label text-ink-secondary hover:text-ink"
     >
       {LABEL[theme]}
     </button>

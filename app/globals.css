@@ -1,82 +1,95 @@
 @import "tailwindcss";
 
-/* aidep design tokens: editorial broadsheet, printed on warm paper by day and
- * on black newsprint by night. Near-monochrome ink; red, amber and green are
- * reserved status colors (dead / dying / clean) and never decoration. Status is
- * never color alone: chips always carry a text label.
+/* aidep design tokens.
+ *
+ * A register of dying model APIs, set the way a terminal and a ledger would
+ * agree to set it. Dark-first. A serif voice for the few sentences that are
+ * ours, mono for everything that is data, and one accent used only to point.
+ * Three status colors carry meaning and never decorate.
  *
  * Three theme states, the GitHub model:
  *   no attribute          follow the OS (prefers-color-scheme)
- *   data-theme="light"    force light, even on a dark OS
- *   data-theme="dark"     force dark, even on a light OS
+ *   data-theme="light"    force light
+ *   data-theme="dark"     force dark
  *
- * The dark values appear twice on purpose. The media block serves readers with
+ * The light values appear twice on purpose. The media block serves readers with
  * no JavaScript and no stored choice; the attribute block lets an explicit
  * choice win in both directions. Keep the two lists identical. */
 
 :root {
+  color-scheme: dark;
+
+  --paper: oklch(13% 0.006 80);
+  --paper-raised: oklch(17% 0.006 80);
+  --paper-sunk: oklch(10% 0.005 80);
+  --ink: oklch(94% 0.006 90);
+  --ink-secondary: oklch(72% 0.008 85);
+  --ink-muted: oklch(52% 0.008 85);
+  --rule: oklch(25% 0.006 85);
+  --rule-strong: oklch(40% 0.008 85);
+  --dead: oklch(70% 0.15 27);
+  --dead-bg: oklch(22% 0.05 27);
+  --dying: oklch(78% 0.12 80);
+  --dying-bg: oklch(23% 0.045 80);
+  --clean: oklch(72% 0.11 155);
+  --clean-bg: oklch(21% 0.04 155);
+  --link: oklch(78% 0.09 80);
+  --accent: oklch(78% 0.12 80);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+
+    --paper: oklch(97% 0.006 95);
+    --paper-raised: oklch(99% 0.004 95);
+    --paper-sunk: oklch(94.5% 0.006 95);
+    --ink: oklch(20% 0.012 80);
+    --ink-secondary: oklch(40% 0.012 80);
+    --ink-muted: oklch(58% 0.01 80);
+    --rule: oklch(88% 0.008 90);
+    --rule-strong: oklch(74% 0.01 90);
+    --dead: oklch(50% 0.17 27);
+    --dead-bg: oklch(95% 0.025 27);
+    --dying: oklch(55% 0.12 70);
+    --dying-bg: oklch(95.5% 0.035 85);
+    --clean: oklch(48% 0.09 155);
+    --clean-bg: oklch(95.5% 0.03 155);
+    --link: oklch(48% 0.1 70);
+    --accent: oklch(55% 0.12 70);
+  }
+}
+
+:root[data-theme="light"] {
   color-scheme: light;
 
-  --paper: oklch(97.5% 0.006 95);
+  --paper: oklch(97% 0.006 95);
   --paper-raised: oklch(99% 0.004 95);
-  --ink: oklch(24% 0.015 80);
-  --ink-secondary: oklch(42% 0.012 80);
+  --paper-sunk: oklch(94.5% 0.006 95);
+  --ink: oklch(20% 0.012 80);
+  --ink-secondary: oklch(40% 0.012 80);
   --ink-muted: oklch(58% 0.01 80);
   --rule: oklch(88% 0.008 90);
+  --rule-strong: oklch(74% 0.01 90);
   --dead: oklch(50% 0.17 27);
   --dead-bg: oklch(95% 0.025 27);
   --dying: oklch(55% 0.12 70);
   --dying-bg: oklch(95.5% 0.035 85);
   --clean: oklch(48% 0.09 155);
   --clean-bg: oklch(95.5% 0.03 155);
-  --link: oklch(45% 0.09 240);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-
-    --paper: oklch(17% 0.008 85);
-    --paper-raised: oklch(21% 0.008 85);
-    --ink: oklch(93% 0.008 90);
-    --ink-secondary: oklch(76% 0.01 85);
-    --ink-muted: oklch(62% 0.01 85);
-    --rule: oklch(32% 0.008 85);
-    --dead: oklch(70% 0.15 27);
-    --dead-bg: oklch(28% 0.055 27);
-    --dying: oklch(78% 0.12 80);
-    --dying-bg: oklch(29% 0.05 80);
-    --clean: oklch(72% 0.11 155);
-    --clean-bg: oklch(27% 0.045 155);
-    --link: oklch(74% 0.11 240);
-  }
-}
-
-:root[data-theme="dark"] {
-  color-scheme: dark;
-
-  --paper: oklch(17% 0.008 85);
-  --paper-raised: oklch(21% 0.008 85);
-  --ink: oklch(93% 0.008 90);
-  --ink-secondary: oklch(76% 0.01 85);
-  --ink-muted: oklch(62% 0.01 85);
-  --rule: oklch(32% 0.008 85);
-  --dead: oklch(70% 0.15 27);
-  --dead-bg: oklch(28% 0.055 27);
-  --dying: oklch(78% 0.12 80);
-  --dying-bg: oklch(29% 0.05 80);
-  --clean: oklch(72% 0.11 155);
-  --clean-bg: oklch(27% 0.045 155);
-  --link: oklch(74% 0.11 240);
+  --link: oklch(48% 0.1 70);
+  --accent: oklch(55% 0.12 70);
 }
 
 @theme inline {
   --color-paper: var(--paper);
   --color-paper-raised: var(--paper-raised);
+  --color-paper-sunk: var(--paper-sunk);
   --color-ink: var(--ink);
   --color-ink-secondary: var(--ink-secondary);
   --color-ink-muted: var(--ink-muted);
   --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
   --color-dead: var(--dead);
   --color-dead-bg: var(--dead-bg);
   --color-dying: var(--dying);
@@ -84,57 +97,117 @@
   --color-clean: var(--clean);
   --color-clean-bg: var(--clean-bg);
   --color-link: var(--link);
+  --color-accent: var(--accent);
   --font-display: var(--font-display);
   --font-body: var(--font-body);
+  --font-mono: var(--font-mono);
 }
 
 body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-body), sans-serif;
+  font-feature-settings: "kern" 1, "liga" 1;
 }
 
 h1,
 h2,
 h3 {
   font-family: var(--font-display), serif;
+  font-weight: 400;
+  letter-spacing: -0.02em;
 }
 
-/* ---- editorial primitives ----
- * The broadsheet character lives in three things Tailwind cannot say directly:
- * a drop cap, a rule pair (thick over thin, the way a nameplate is set), and
- * headline figures that use lining tabular numerals so a 6-digit count does not
- * wobble. Everything else is utilities. */
-
-.dropcap::first-letter {
-  float: left;
-  font-family: var(--font-display), serif;
-  font-size: 3.1em;
-  line-height: 0.82;
-  padding: 0.06em 0.09em 0 0;
-  color: var(--ink);
+/* ---- the page grid ----
+ * Every reference site sits the content on a visible, faint grid. Ours is a
+ * 64px field drawn in the rule color at low contrast, fixed to the viewport so
+ * content scrolls over it. It reads as engineered rather than decorated. */
+.grid-field {
+  background-image:
+    linear-gradient(to right, color-mix(in oklch, var(--rule) 55%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklch, var(--rule) 55%, transparent) 1px, transparent 1px);
+  background-size: 64px 64px;
+  background-position: center top;
 }
 
-/* Thick over thin, with the hairline set just below. A newspaper section rule. */
-.rule-pair {
-  border-top: 3px solid var(--ink);
-  box-shadow: 0 2px 0 -1px var(--rule);
+/* ---- mono labels ----
+ * The metadata voice. Kickers, table heads, datelines, chips, nav. Small,
+ * tracked, uppercase, always mono. */
+.label {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
 }
 
-/* Headline figures: lining, tabular, tightened. For counts set at display size. */
+/* Bracketed label, the antimattr idiom: [shipping starts q4]. The brackets are
+ * real characters in the markup; this only sets the voice. */
+.label-bracket::before {
+  content: "[";
+  opacity: 0.5;
+  margin-right: 0.15em;
+}
+.label-bracket::after {
+  content: "]";
+  opacity: 0.5;
+  margin-left: 0.15em;
+}
+
+/* ---- display figures ----
+ * Big counts in the serif, lining tabular numerals, tight. */
 .figure {
   font-family: var(--font-display), serif;
   font-variant-numeric: lining-nums tabular-nums;
-  letter-spacing: -0.03em;
-  font-feature-settings: "kern" 1;
+  letter-spacing: -0.04em;
+  font-weight: 400;
+}
+
+/* An italic word inside a serif headline, antimattr's trick for the one word
+ * that carries the sentence. */
+.em {
+  font-style: italic;
+  color: var(--accent);
+}
+
+/* Strike-through in the dead color for a retired id: "delete the unnecessary". */
+.struck {
+  text-decoration: line-through;
+  text-decoration-color: var(--dead);
+  text-decoration-thickness: 1.5px;
+  color: var(--ink-muted);
+}
+
+/* ---- panels ----
+ * Bordered surfaces sitting on the grid. No shadow, no radius beyond 2px. The
+ * header strip carries a mono label, the body is whatever it holds. */
+.panel {
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+}
+.panel-head {
+  border-bottom: 1px solid var(--rule);
+  padding: 0.5rem 0.875rem;
+  color: var(--ink-muted);
+}
+
+/* ---- the mark ----
+ * Setting sun on a horizon rule. Inline SVG wherever it appears; this only
+ * sizes it by the surrounding font so it sits on the text baseline. */
+.mark {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.12em;
 }
 
 /* Styles the HTML that `marked` renders from handbook/*.md. Tokens only, no
  * typography plugin: the rules here are the same ones the hand-built pages
  * follow, so a handbook page and /security read as the same document. */
 .handbook-prose h1 {
-  font-size: 2.25rem;
-  letter-spacing: -0.02em;
+  font-size: 2.5rem;
+  line-height: 1.05;
   color: var(--ink);
 }
 
@@ -142,7 +215,7 @@ h3 {
   font-size: 1.5rem;
   color: var(--ink);
   margin-top: 3.5rem;
-  padding-top: 1.5rem;
+  padding-top: 1.25rem;
   border-top: 1px solid var(--rule);
 }
 
@@ -192,21 +265,21 @@ h3 {
 }
 
 .handbook-prose code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono), ui-monospace, monospace;
   font-size: 0.875em;
   color: var(--ink);
-  background: var(--paper-raised);
+  background: var(--paper-sunk);
   border: 1px solid var(--rule);
-  border-radius: 0.125rem;
+  border-radius: 2px;
   padding: 0.05em 0.3em;
 }
 
 .handbook-prose pre {
   margin-top: 1.25rem;
   padding: 1rem;
-  background: var(--paper-raised);
+  background: var(--paper-sunk);
   border: 1px solid var(--rule);
-  border-radius: 0.125rem;
+  border-radius: 2px;
   overflow-x: auto;
 }
 
@@ -223,7 +296,7 @@ h3 {
 .handbook-prose blockquote {
   margin-top: 1.25rem;
   padding-left: 1rem;
-  border-left: 2px solid var(--rule);
+  border-left: 2px solid var(--rule-strong);
   color: var(--ink-muted);
 }
 
@@ -250,11 +323,12 @@ h3 {
 }
 
 .handbook-prose th {
+  font-family: var(--font-mono), ui-monospace, monospace;
   color: var(--ink-muted);
-  font-weight: 500;
-  font-size: 0.75rem;
+  font-weight: 400;
+  font-size: 0.6875rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.14em;
 }
 
 .handbook-prose td {

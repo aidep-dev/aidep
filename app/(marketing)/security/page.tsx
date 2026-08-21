@@ -10,7 +10,7 @@ export default function SecurityPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-6 pb-20 pt-16">
-      <h1 className="text-4xl tracking-tight">Security</h1>
+      <h1 className="text-5xl sm:text-6xl">Security</h1>
       <p className="mt-3 max-w-xl text-lg text-ink-secondary">
         What aidep can touch, what it stores, and what it never sees.
       </p>
@@ -21,7 +21,7 @@ export default function SecurityPage() {
         <div className="mt-5 overflow-x-auto">
           <table className="w-full min-w-[480px] border-collapse text-sm">
             <thead>
-              <tr className="border-b border-rule text-left text-xs uppercase tracking-wider text-ink-muted">
+              <tr className="label border-b border-rule text-left text-ink-muted">
                 <th className="py-2 pr-4 font-medium">Permission</th>
                 <th className="py-2 pr-4 font-medium">Level</th>
                 <th className="py-2 font-medium">Why</th>

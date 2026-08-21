@@ -12,7 +12,7 @@ export default function PricingPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 pb-20 pt-16">
-      <h1 className="text-4xl tracking-tight">Pricing</h1>
+      <h1 className="text-5xl sm:text-6xl">Pricing</h1>
       <p className="mt-3 max-w-xl text-lg text-ink-secondary">
         Finding the problem and fixing it are free, on every repo you own. The paid line is the
         proof that the fix did not change behavior.
@@ -77,7 +77,7 @@ export default function PricingPage() {
         <div className="mt-4 overflow-x-auto">
           <table className="w-full min-w-[520px] border-collapse text-sm">
             <thead>
-              <tr className="border-b border-rule text-left text-xs uppercase tracking-wider text-ink-muted">
+              <tr className="label border-b border-rule text-left text-ink-muted">
                 <th className="py-2 pr-4 font-medium">Input</th>
                 <th className="py-2 pr-4 font-medium">Assumed</th>
                 <th className="py-2 font-medium">Why</th>
@@ -129,7 +129,7 @@ export default function PricingPage() {
         <div className="mt-4 overflow-x-auto">
           <table className="w-full min-w-[420px] border-collapse text-sm">
             <thead>
-              <tr className="border-b border-rule text-left text-xs uppercase tracking-wider text-ink-muted">
+              <tr className="label border-b border-rule text-left text-ink-muted">
                 <th className="py-2 pr-4 font-medium">Tool</th>
                 <th className="py-2 font-medium">Price</th>
               </tr>

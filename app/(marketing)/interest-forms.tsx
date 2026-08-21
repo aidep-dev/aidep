@@ -22,12 +22,12 @@ export function WaitlistForm() {
   const [email, setEmail] = useState("");
 
   if (state === "done") {
-    return <p className="mt-6 text-sm text-ink">You&rsquo;re on the list.</p>;
+    return <p className="label text-clean">You&rsquo;re on the list.</p>;
   }
 
   return (
     <form
-      className="mt-6 flex max-w-md gap-2"
+      className="mt-0 flex gap-2"
       onSubmit={async (e) => {
         e.preventDefault();
         setState("sending");
@@ -42,7 +42,7 @@ export function WaitlistForm() {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@company.com"
           aria-label="Email"
-          className="w-full border border-rule bg-paper-raised px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-ink-muted focus:outline-none"
+          className="w-full border border-rule bg-paper-raised px-3 py-2.5 font-mono text-sm text-ink placeholder:text-ink-muted focus:border-rule-strong focus:outline-none"
         />
         {state === "error" && (
           <p className="mt-2 text-sm text-ink-secondary">That didn&rsquo;t go through. Try again.</p>
@@ -51,7 +51,7 @@ export function WaitlistForm() {
       <button
         type="submit"
         disabled={state === "sending"}
-        className="h-fit shrink-0 border border-rule px-4 py-2 text-sm text-ink hover:border-ink-muted disabled:opacity-60"
+        className="label h-fit shrink-0 border border-rule-strong px-4 py-3 text-ink hover:border-ink hover:bg-ink hover:text-paper disabled:opacity-60"
       >
         {state === "sending" ? "Joining…" : "Join the waitlist"}
       </button>
@@ -75,7 +75,7 @@ export function UpgradeButton() {
           setState("sending");
           setState((await postInterest({ source: "pricing-upgrade" })) ? "done" : "error");
         }}
-        className="border border-rule px-5 py-2.5 text-sm text-ink hover:border-ink-muted disabled:opacity-60"
+        className="label border border-rule-strong px-5 py-3 text-ink hover:border-ink hover:bg-ink hover:text-paper disabled:opacity-60"
       >
         {state === "sending" ? "One moment…" : "Upgrade"}
       </button>

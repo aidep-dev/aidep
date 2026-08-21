@@ -63,7 +63,7 @@ export default async function HandbookPage({ params }: PageProps<"/handbook/[[..
 
   return (
     <div className="mx-auto max-w-3xl px-6 pb-20 pt-16">
-      <nav className="flex flex-wrap gap-x-5 gap-y-2 border-b border-rule pb-4 text-xs uppercase tracking-wider">
+      <nav className="label flex flex-wrap gap-x-6 gap-y-2 border-b border-rule pb-4">
         {all.map((p) => (
           <Link
             key={p.slug}

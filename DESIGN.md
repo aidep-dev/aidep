@@ -10,200 +10,199 @@ disagree, the CSS is right and this file is stale.
 
 ## 1. Visual theme and atmosphere
 
-**An editorial broadsheet about things that are dying.**
+**A register of dying model APIs, set the way a terminal and a ledger would agree
+to set it.**
 
 aidep publishes dated facts: what breaks, on what day, with the vendor page that
-proves it. The design leans into that. Serif headlines over a sans body, generous
-rules between sections, tabular numbers, and almost no color. It should read like
-a page of record, not like a SaaS dashboard.
+proves it. The site is dark-first, sits its content on a faint engineered grid,
+and speaks in two voices. A serif for the few sentences that are ours. Mono for
+everything that is data, which is most of the site.
 
-The reference points are GitHub's *mechanics* and a newspaper's *voice*. From
-GitHub: three-state theming, density, monospace for identifiers, keyboard-first,
-zero decoration that does not carry information. From the newspaper: the serif
-display face, the horizontal rules, the restraint with color, and the assumption
-that the reader came for the facts.
+The references, and what each one gave us:
 
-Dark mode is not a recolored light mode. It is the same broadsheet printed on
-black newsprint: the paper goes warm-black, the ink goes warm-white, and the hues
-stay exactly where they were.
+- **herdr.dev**: the hero (kicker with a leading rule, two-line headline with one
+  accented word, a copyable command), the faint mark bleeding off the right edge,
+  the numbered `01 / 02 / 03` rows with a mono panel beside each, and the
+  stat band.
+- **insforge.dev**: the grid field behind everything, bordered panels with a
+  mono label strip, one disciplined accent.
+- **antimattr**: the italic accent word inside a serif headline, the bracketed
+  mono label `[like this]`, and the red strike-through for what is being deleted.
+
+What we kept from the earlier broadsheet idea: Newsreader as the display face,
+the restraint with color, status never conveyed by color alone. What we dropped:
+the newspaper masthead, the drop cap, the rule pairs. They pointed at a printed
+page when the references point at a screen.
 
 **What this is not.** Not a gradient hero, not glassmorphism, not a floating
-3D render, not an animated background. If a visual element does not tell the
-reader something true about their code, it does not ship.
+3D render, not an animated background. The grid is the only texture. If a visual
+element does not tell the reader something true about their code, it does not
+ship.
 
 ---
 
 ## 2. Color palette and roles
 
 All colors are oklch so that light and dark share a hue and differ only in
-lightness and chroma. Never write a hex, an rgb, or a Tailwind palette color
-(`gray-700`, `red-500`) into a component. The app currently has zero hardcoded
-colors and that is worth keeping.
+lightness and chroma. Dark is the default and the one to design in. Never write
+a hex, an rgb, or a Tailwind palette color (`gray-700`, `red-500`) into a
+component.
 
 ### Surfaces and ink
 
-| Token | Light | Dark | Role |
+| Token | Dark | Light | Role |
 |---|---|---|---|
-| `paper` | `oklch(97.5% 0.006 95)` | `oklch(17% 0.008 85)` | page background |
-| `paper-raised` | `oklch(99% 0.004 95)` | `oklch(21% 0.008 85)` | cards, table headers, anything one step above the page |
-| `ink` | `oklch(24% 0.015 80)` | `oklch(93% 0.008 90)` | primary text, headlines |
-| `ink-secondary` | `oklch(42% 0.012 80)` | `oklch(76% 0.01 85)` | body copy, nav links at rest |
-| `ink-muted` | `oklch(58% 0.01 80)` | `oklch(62% 0.01 85)` | captions, footers, table meta |
-| `rule` | `oklch(88% 0.008 90)` | `oklch(32% 0.008 85)` | every border and divider |
-| `link` | `oklch(45% 0.09 240)` | `oklch(74% 0.11 240)` | inline links only |
+| `paper` | `oklch(13% 0.006 80)` | `oklch(97% 0.006 95)` | page background |
+| `paper-raised` | `oklch(17% 0.006 80)` | `oklch(99% 0.004 95)` | panels, table surfaces |
+| `paper-sunk` | `oklch(10% 0.005 80)` | `oklch(94.5% 0.006 95)` | code blocks, inset wells |
+| `ink` | `oklch(94% 0.006 90)` | `oklch(20% 0.012 80)` | primary text, headlines |
+| `ink-secondary` | `oklch(72% 0.008 85)` | `oklch(40% 0.012 80)` | body copy |
+| `ink-muted` | `oklch(52% 0.008 85)` | `oklch(58% 0.01 80)` | labels, captions, table heads |
+| `rule` | `oklch(25% 0.006 85)` | `oklch(88% 0.008 90)` | every border, the grid |
+| `rule-strong` | `oklch(40% 0.008 85)` | `oklch(74% 0.01 90)` | kicker rules, button borders |
+| `accent` | `oklch(78% 0.12 80)` | `oklch(55% 0.12 70)` | the one italic word, nothing else |
+| `link` | `oklch(78% 0.09 80)` | `oklch(48% 0.1 70)` | inline links |
 
-Note that `paper-raised` is *lighter* than `paper` in both themes. Elevation is
-always toward the light source, which inverts along with everything else.
+The accent is warm amber, the same hue family as `dying`, so the one accented
+word on a page and the "34 days" chip read as the same temperature. Use it for
+exactly one word per headline, via `.em`. Not for buttons, not for icons, not
+for hover states.
 
 ### Status, and only status
 
-Three colors carry meaning and are never used for decoration, emphasis, or
-branding.
-
-| Token | Light | Dark | Means |
+| Token | Dark | Light | Means |
 |---|---|---|---|
-| `dead` / `dead-bg` | `oklch(50% 0.17 27)` / `oklch(95% 0.025 27)` | `oklch(70% 0.15 27)` / `oklch(28% 0.055 27)` | already retired, calls fail today |
-| `dying` / `dying-bg` | `oklch(55% 0.12 70)` / `oklch(95.5% 0.035 85)` | `oklch(78% 0.12 80)` / `oklch(29% 0.05 80)` | dated for retirement, still works |
-| `clean` / `clean-bg` | `oklch(48% 0.09 155)` / `oklch(95.5% 0.03 155)` | `oklch(72% 0.11 155)` / `oklch(27% 0.045 155)` | nothing found, or migration verified |
+| `dead` / `dead-bg` | `oklch(70% 0.15 27)` / `oklch(22% 0.05 27)` | `oklch(50% 0.17 27)` / `oklch(95% 0.025 27)` | retired, calls fail today |
+| `dying` / `dying-bg` | `oklch(78% 0.12 80)` / `oklch(23% 0.045 80)` | `oklch(55% 0.12 70)` / `oklch(95.5% 0.035 85)` | dated, still works |
+| `clean` / `clean-bg` | `oklch(72% 0.11 155)` / `oklch(21% 0.04 155)` | `oklch(48% 0.09 155)` / `oklch(95.5% 0.03 155)` | nothing found, or migration verified |
 
-**Status is never color alone.** Every status chip carries a text label, because
-a red pill with no word in it is invisible to a colorblind reader and meaningless
-in a screenshot. This is a hard rule, not a preference.
-
-### Contrast floor
-
-Body text meets WCAG AA (4.5:1) against its own surface in both themes.
-`ink-muted` sits closest to the line, so do not use it for anything a reader must
-read to act, only for provenance and timestamps. Status text on its matching
-`-bg` clears 4.5:1 in both themes; status text on plain `paper` clears it
-comfortably.
+**Status is never color alone.** Every chip carries a word. A retired id is also
+struck through (`.struck`), so it reads without color at all.
 
 ---
 
 ## 3. Typography
 
-Two families, loaded through `next/font/google` in `app/layout.tsx`.
+Three families, all loaded through `next/font/google` in `app/layout.tsx`.
 
-- **Display: Newsreader** (serif, normal and italic). `h1`, `h2`, `h3`, and the
-  wordmark. Applied globally in `globals.css`, so a heading needs no class.
-- **Body: Public Sans**. Everything else, including tables and buttons.
-- **Mono: the system stack.** Model ids, file paths, env var names, and anything
-  a reader might copy. Use Tailwind's `font-mono`; there is no custom mono face
-  and there does not need to be.
+- **Display: Newsreader**, with the optical-size axis, normal and italic.
+  `h1`, `h2`, `h3`, the wordmark, and display figures. Weight 400 only; the face
+  has enough contrast that bold reads as a different font.
+- **Body: Public Sans.** Paragraphs. That is nearly its only job.
+- **Mono: Geist Mono.** The data voice. Kickers, nav, table heads, table bodies
+  that hold identifiers or dates, chips, datelines, footer, code, commands. If
+  it is a fact rather than a sentence, it is mono.
 
-Scale in use, smallest to largest. Stick to these; a new size needs a reason.
+The `.label` class is the single most used thing in the system: 11px mono,
+uppercase, tracked 0.14em, tabular numerals. Nav, kickers, chips, table heads,
+stat captions and the footer all use it. Reach for it before reaching for
+`text-xs`.
 
-| Class | Used for |
+Scale:
+
+| Use | Setting |
 |---|---|
-| `text-xs` | table meta, footers, provenance lines, chips |
-| `text-sm` | nav, body copy in dense areas, table cells |
-| `text-base` | default paragraph |
-| `text-2xl` | the wordmark, section headings |
-| `text-4xl` | page titles |
+| hero headline | `text-[clamp(2.75rem,7.5vw,5.5rem)] leading-[0.95]` |
+| closing headline | `text-[clamp(2.25rem,6vw,4rem)]` |
+| page title | `text-5xl sm:text-6xl` |
+| section head | `text-3xl sm:text-4xl` |
+| step title | `text-2xl` |
+| stat figure | `.figure text-4xl sm:text-5xl` |
+| step numeral | `.figure text-5xl text-ink-muted/60` |
+| body | `text-base leading-relaxed` |
+| table body | `font-mono text-[13px]` |
+| label | `.label` (11px mono caps) |
 
-Rules that matter more than the scale:
+The contrast between a 5.5rem serif headline and an 11px mono label is the whole
+typographic idea. Do not add sizes in between to soften it.
 
-- `leading-relaxed` on any paragraph over one line.
-- `max-w-xl` for reading columns, `max-w-2xl` for wider prose, `max-w-5xl` for
-  the page shell. Never let a line of prose run the full page width.
-- Numbers in tables are `tabular-nums` so columns of file counts align.
-- Small caps labels are `text-xs uppercase tracking-wide text-ink-muted`.
-- `font-medium` is the heaviest weight in the body face. There is no bold body
-  text; emphasis comes from color and position.
+**The accented word.** One word per headline, italic, in `accent`, via
+`<span className="em">`. It should be the word the sentence turns on:
+*Before* it takes you down. Why not just ask *my* agent. Never two per headline,
+never on a section head.
 
 ---
 
 ## 4. Component stylings
 
-These already exist. Match them rather than inventing a variant.
+**Header.** Sticky, `border-b border-rule`, translucent paper with a light blur.
+Mark plus wordmark on the left, `.label` nav in the middle, theme toggle,
+dashboard and an outlined `install` control on the right. One row. Collapses to
+mark, toggle and install below `md`.
 
-**Masthead.** Three bands in `app/(marketing)/layout.tsx`, in this order: a
-utility strip in 11px caps, the nameplate (the wordmark in Newsreader at
-`text-5xl`/`text-6xl`, larger than anything else on any page, with the standing
-tagline right-aligned), then the folio rule, a `border-y-[3px] border-ink` band
-carrying the nav in caps. That stack is what makes the site read as a paper
-rather than a landing page. Do not shrink the nameplate to match a heading.
+**Kicker (`Kicker`).** A 2rem hairline in `rule-strong` followed by a `.label`
+in `ink-muted`. Sits above every section head and above the hero headline. The
+herdr idiom.
 
-**Rule pair (`.rule-pair`).** Thick over thin, the newspaper section rule. Use it
-above every section head, with a kicker in 11px caps sitting above the rule.
-A plain `border-t` is for rows inside a table, not for structure.
+**Mark (`Mark`, `app/mark.tsx`).** Setting sun on a horizon rule, from the logo
+system. `currentColor`, so it inherits ink. Three variants encode status: `clean`
+(full disc above the rule), `dying` (half set, the default), `dead` (a sliver).
+Inline in the header and footer at text size; large and at 6% opacity bleeding
+off the hero's right edge. The favicon is `app/icon.svg`, the same geometry with
+the rule thickened to an eighth of the width so it survives 16px.
 
-**Dateline.** An 11px caps band under the folio: what the register holds, the
-providers, today's date. Only on the front page.
+**Panel (`.panel`, `.panel-head`).** `paper-raised`, 1px `rule` border, 2px
+radius. Optional head strip with a `.label`. Holds tables, code, the command
+box, and the asides beside each step. No shadow.
 
-**Drop cap (`.dropcap`).** The opening paragraph of the lead story, and nowhere
-else. The paragraph must start on a letter, since `::first-letter` will happily
-take the "1" out of "16,320" and set it three lines tall.
+**Command box.** A `.panel` with the command in mono and a `.label` cell on the
+right saying what it costs you (`no account`). The prompt `$` is `ink-muted`.
 
-**Display figures (`.figure`).** Lining tabular numerals in the display serif for
-counts set large. The front page headline number is `clamp(4rem,15vw,9.5rem)`,
-and the scale contrast between that and 16px body is the point, not an accident.
+**Button, primary.** `.label border border-ink bg-ink text-paper px-4 py-3`,
+inverting on hover. Mono caps, like everything else that is a control.
 
-**Header nav.** Items are `text-xs uppercase tracking-widest text-ink-secondary
-hover:text-ink` inside the folio rule. No active-state underline; the page title
-says where you are.
+**Button, outline.** `.label border border-rule-strong px-3 py-1.5 text-ink`,
+filling with ink on hover. The header's install control.
 
-**Button, primary.** `bg-ink text-paper px-5 py-2.5 rounded-sm font-medium`.
-Inverted ink on paper. One per view, at most.
+**Stat band.** A full-width strip between `border-y border-rule`, four cells
+divided by `divide-x`, each a `.figure` over a `.label`. Numbers come from the
+registry at render time where they can.
 
-**Button, secondary.** `border border-rule px-3 py-1.5 text-ink-secondary
-hover:border-ink-muted hover:text-ink`. The border darkens on hover, the fill
-never changes.
+**Table.** Inside a `.panel`. `table-fixed` with a `<colgroup>` so two tables
+stacked on one page share column edges. Head row `.label text-ink-muted`, body
+`font-mono text-[13px]`, rows `border-b border-rule last:border-b-0`. Dates
+`tabular-nums`. Wrap in `overflow-x-auto`.
 
-**Status chip.** `px-2 py-0.5 rounded-sm text-xs` with a `-bg` background and its
-matching text color, plus a word. `bg-dead-bg text-dead` reading "retired", not a
-bare dot.
+**Chip.** `.label px-1.5 py-0.5` with a status `-bg` and matching text color,
+and a word in it.
 
-**Table.** Header row `border-b border-rule text-xs uppercase text-ink-muted`,
-body rows `border-b border-rule py-2`, last row keeps its border. Left-align
-text, right-align numbers. Wrap in `overflow-x-auto` so a wide table scrolls
-inside itself instead of scrolling the page.
+**Step row (`Step`).** Three columns on `md`: a `.figure` numeral, title plus
+body, and a `.panel` aside with a `.label` head. Rows separated by `divide-y`.
 
-**Card.** `bg-paper-raised border border-rule rounded-sm p-6`. No shadow.
+**Struck id (`.struck`).** Line-through in `dead`, text in `ink-muted`. For
+anything retired.
 
-**Link.** `text-link underline underline-offset-2`. Inline links are underlined
-always, not only on hover, because an underline is the only cue that survives
-both themes and colorblindness.
+**Theme toggle.** A `.label` text button cycling Auto, Light, Dark. `app/theme.tsx`.
 
-**Theme toggle.** A single text button cycling Auto, Light, Dark, back to Auto,
-labelled with the current state. `app/theme.tsx`.
-
-**Prose.** `.handbook-prose` in `globals.css` styles the HTML that `marked`
-renders from `handbook/*.md`. It uses tokens only and mirrors the rules the
-hand-built pages follow, so a handbook page and `/security` read as one document.
-There is no `@tailwindcss/typography`; if prose needs a new element style, add it
-to that block rather than reaching for the plugin.
+**Prose (`.handbook-prose`).** Styles `marked`'s output for `handbook/*.md` with
+tokens only. Table heads and inline code are mono.
 
 ---
 
 ## 5. Layout
 
-- **Shell:** `mx-auto max-w-5xl px-6`. Every page uses it.
-- **Spacing scale:** 2, 3, 6, 12, 16, 24 in Tailwind units. `py-2`/`py-2.5` for
-  dense rows, `gap-3` between related controls, `px-6` page gutter, and section
-  spacing in multiples of 12.
-- **Sections are separated by rules, not by cards.** A `border-t border-rule`
-  with space above and below is the default divider. Reach for a card only when
-  content genuinely needs a surface of its own.
-- **Whitespace is vertical.** Generous space between sections, tight space inside
-  a row. A dense table under an airy heading is correct.
-- **One column by default.** Two columns only where the content is genuinely
-  paired, and they stack below `md`.
+- **Shell:** `mx-auto max-w-6xl px-6`. Wider than before, to let the three-column
+  step rows breathe.
+- **The grid field.** `.grid-field` on the marketing wrapper: 64px cells in
+  `rule` at 55%, fixed to the viewport. Content scrolls over it. Panels sit on
+  it; they do not try to align to it.
+- **Sections** are separated by `border-t border-rule` on the section itself
+  with `py-20` inside. No cards as section containers.
+- **Vertical rhythm** is 20 between sections, 10 between a head and its content,
+  8 to 9 between a paragraph and its control.
+- **Two columns** only where content is genuinely paired (the objection section,
+  step rows). They stack below `md`.
 
 ---
 
 ## 6. Depth and elevation
 
-There are two levels and no shadows.
+Three surfaces and nothing else: `paper-sunk` below, `paper` the page,
+`paper-raised` above. Elevation is the surface step plus a 1px `rule` border.
+No `box-shadow` anywhere. The header's `backdrop-blur-sm` is the only blur and
+it exists so the grid reads through the sticky bar.
 
-1. `paper` is the page.
-2. `paper-raised` plus `border border-rule` is anything above it.
-
-Depth is expressed by the border and the one-step surface change. No `box-shadow`
-anywhere, no blur, no layered translucency. On a broadsheet nothing floats.
-
-`rounded-sm` is the only radius. Not `rounded-lg`, not `rounded-full` except on a
-genuine avatar.
+Radius is 2px on panels and nothing on anything else.
 
 ---
 
@@ -211,75 +210,73 @@ genuine avatar.
 
 **Do**
 
-- Reach for an existing token. If you need a color that is not in the table, the
-  answer is usually that you do not.
-- Put a text label on every status.
-- Underline inline links.
+- Use `.label` for anything that is metadata.
+- Put exactly one `.em` word in a hero or closing headline.
+- Put every table inside a `.panel` and give it a `<colgroup>`.
+- Put a text label on every status chip.
+- Check both themes. Dark is default; set `data-theme="light"` in devtools for
+  the other.
 - Let wide content scroll inside its own container.
-- Use `font-mono` for anything the reader might copy into a terminal.
-- Check both themes before you commit. Setting `data-theme="dark"` on `<html>` in
-  devtools is enough.
 
 **Don't**
 
 - No hex, rgb, or Tailwind palette colors in components.
-- No shadows, gradients, or glass. Pryzm gradients and Dither textures are for
-  standalone imagery (social cards, mascot art), never for UI chrome.
-- No status conveyed by color alone.
-- No animation beyond a color transition on hover. Nothing moves on scroll,
-  nothing fades in, nothing parallaxes.
+- No shadows, gradients, or glass beyond the header blur.
+- No second accent. Amber is the only one.
+- No `.em` on section heads, buttons, or body copy.
+- No bold in the display face.
+- No animation beyond a color transition on hover.
 - No icon-only controls without an `aria-label`.
-- No third font. Two families and the system mono stack is the whole set.
-- No new radius, no new shadow, no new spacing step without changing this file
-  first.
+- No new radius, font, spacing step or surface without changing this file first.
 
 ---
 
 ## 8. Responsive behavior
 
-Tailwind's default breakpoints; the ones that matter are `md` (768px) and
-`lg` (1024px).
+Tailwind's default breakpoints; `md` (768px) is the one that matters.
 
-- The shell is `max-w-5xl px-6` at every size. Below `md` the padding carries it.
-- Nav collapses to the wordmark plus the two most important links below `md`.
-  There is no hamburger drawer; the site has four pages.
-- Two-column layouts stack at `md`.
-- Tables never reflow into cards. They scroll horizontally inside
-  `overflow-x-auto`, because the columns are the comparison and stacking them
-  destroys it.
-- The page body must never scroll horizontally at any width.
+- Header: mark, toggle and install stay; nav links and the dashboard link hide
+  below `md`. The footer carries the full nav at every width.
+- Stat band: 2×2 below `md`, 1×4 above.
+- Step rows: stacked below `md`, three columns above.
+- Tables never reflow into cards. They scroll inside `overflow-x-auto`.
+- The page body must never scroll horizontally. The hero mark is inside
+  `overflow-hidden` for exactly this reason.
 
 ---
 
 ## 9. Agent prompt guide
 
-Quick reference for generating UI in this codebase.
-
 ```
-Surfaces   bg-paper  bg-paper-raised
+Surfaces   bg-paper  bg-paper-raised  bg-paper-sunk
 Text       text-ink  text-ink-secondary  text-ink-muted
-Borders    border-rule
+Borders    border-rule  border-rule-strong
+Labels     .label                 (11px mono caps, the metadata voice)
+Accent     .em                    (one italic word per headline, amber)
 Status     bg-dead-bg/text-dead   bg-dying-bg/text-dying   bg-clean-bg/text-clean
-Links      text-link underline underline-offset-2
-Shell      mx-auto max-w-5xl px-6
-Radius     rounded-sm (the only one)
+Struck     .struck
+Panels     .panel  .panel-head
+Figures    .figure
+Mark       <Mark variant="clean|dying|dead" />
+Shell      mx-auto max-w-6xl px-6
+Radius     2px on panels only
 Shadows    none
 ```
 
 Prompt to paste when adding a page:
 
-> Build this using only the tokens in DESIGN.md. Surfaces are `paper` and
-> `paper-raised`, text is `ink` / `ink-secondary` / `ink-muted`, every border is
-> `rule`. Red, amber and green are reserved for dead, dying and clean status and
-> every status chip carries a text label. Headings inherit Newsreader
-> automatically. Wrap the page in `mx-auto max-w-5xl px-6`. No shadows, no
-> gradients, no animation, no hardcoded colors. Verify it in both themes.
+> Build this using only the tokens and classes in DESIGN.md. Dark is the default.
+> Metadata is `.label`, prose is Public Sans, headings are Newsreader at weight
+> 400. Tables sit inside `.panel` with a `<colgroup>`. At most one `.em` word in
+> the headline. Red, amber and green are reserved for dead, dying and clean, and
+> every chip carries a word. No shadows, no gradients, no hardcoded colors.
+> Verify it in both themes.
 
 Before opening a PR that touches UI:
 
 ```sh
 grep -rE "(bg|text|border)-(white|black|gray|slate|zinc|neutral|stone|red|amber|green|blue)-[0-9]" app/
-grep -rE "#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?\b" app/
+grep -rnE "#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?\b" app/ | grep -v icon.svg
 ```
 
 Both should return nothing.

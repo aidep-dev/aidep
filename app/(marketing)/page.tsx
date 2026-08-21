@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { loadRegistry, type RegistryRow } from "../../src/registry.ts";
+import { Mark } from "../mark.tsx";
 import { daysLabel, daysUntil, formatDies } from "./dates.ts";
 import { WaitlistForm } from "./interest-forms.tsx";
 
@@ -31,22 +32,28 @@ function DaysChip({ days }: { days: number }) {
       : days <= 90
         ? "bg-dying-bg text-dying"
         : "border border-rule text-ink-secondary";
+  return <span className={`label ml-2 inline-block whitespace-nowrap px-1.5 py-0.5 ${tone}`}>{daysLabel(days)}</span>;
+}
+
+function Kicker({ children }: { children: React.ReactNode }) {
   return (
-    <span className={`ml-2 inline-block whitespace-nowrap px-1.5 py-0.5 text-xs ${tone}`}>
-      {daysLabel(days)}
-    </span>
+    <p className="label flex items-center gap-3 text-ink-muted">
+      <span className="inline-block h-px w-8 bg-rule-strong" aria-hidden />
+      {children}
+    </p>
   );
 }
 
 export default async function LandingPage() {
   const rows = await loadRegistry();
   const now = new Date();
+
   // One row per retirement date. Six Sora variants sharing 2026-09-24 is one
   // deadline, not six, and printing it six times buries the rest of the year.
   type Dated = RegistryRow & { dies: string };
   const byDate = new Map<string, Dated[]>();
   for (const r of rows
-    .filter((r): r is RegistryRow & { dies: string } => r.dies !== null && daysUntil(r.dies, now) >= 0)
+    .filter((r): r is Dated => r.dies !== null && daysUntil(r.dies, now) >= 0)
     .sort((a, b) => a.dies.localeCompare(b.dies) || a.id.localeCompare(b.id))) {
     const same = byDate.get(r.dies);
     if (same) same.push(r);
@@ -59,212 +66,325 @@ export default async function LandingPage() {
   const dead = DEAD_PICKS.map((id) => rows.find((r) => r.id === id)).filter(
     (r): r is RegistryRow => r !== undefined,
   );
+  const futureRows = rows.filter((r) => r.dies !== null && daysUntil(r.dies, now) >= 0).length;
+  const datesThisYear = new Set(
+    rows.map((r) => r.dies).filter((d): d is string => d !== null && d.startsWith(String(now.getFullYear()))),
+  ).size;
+  const next = upcoming[0];
 
   const slug = process.env.NEXT_PUBLIC_GITHUB_APP_SLUG;
-  const installUrl = slug ? `https://github.com/apps/${slug}/installations/new` : null;
+  const installUrl = slug ? `https://github.com/apps/${slug}/installations/new` : "#waitlist";
 
   return (
     <>
-      {/* Dateline strip: what the register holds, as of when. */}
-      <div className="mx-auto max-w-5xl px-6">
-        <div className="flex flex-wrap justify-between gap-x-6 gap-y-1 border-b border-rule py-2 text-[11px] uppercase tracking-widest text-ink-muted">
-          <span>
-            <span className="text-ink">{rows.length}</span> deprecations on file
-          </span>
-          <span>OpenAI · Anthropic · Google</span>
-          <span>
-            {now.toLocaleDateString("en-US", {
-              weekday: "long",
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}
-          </span>
+      {/* ---- hero ---- */}
+      <section className="relative overflow-hidden">
+        {/* The mark, large and faint, bleeding off the right edge. Herdr does
+         * this with its ram; it gives the hero a second layer without a photo. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-24 top-8 w-[34rem] text-ink opacity-[0.06] sm:-right-16 sm:w-[40rem]"
+        >
+          <Mark variant="dying" className="h-auto w-full" />
         </div>
-      </div>
 
-      <section className="mx-auto max-w-5xl px-6 pb-16 pt-10 sm:pt-14">
-        <p className="text-xs uppercase tracking-widest text-ink-muted">Still shipping to production</p>
-        <h1 className="figure mt-3 text-[clamp(4rem,15vw,9.5rem)] leading-[0.86] text-ink">308,224</h1>
-        <p className="mt-4 max-w-3xl text-2xl leading-[1.15] tracking-tight sm:text-4xl">
-          files on GitHub still call a model that died ten months ago.
-        </p>
-        {/* The drop cap takes the first character, so this paragraph has to open
-         * on a letter. Starting it on a figure sets a giant "1" beside "6,320". */}
-        <p className="dropcap mt-8 max-w-2xl leading-relaxed text-ink-secondary">
-          Another 16,320 call an API that shuts down on August 26. Nobody wakes up on the fifteenth
-          of October and thinks to check for retired model ids, which is exactly why those numbers
-          are what they are. aidep finds yours, opens the migration PR, and proves behavior held.
-        </p>
-        <p className="mt-4 max-w-2xl text-sm text-ink-muted">
-          Counts from GitHub code search on 2026-08-18, one query each:{" "}
-          <code>&quot;claude-3-5-sonnet-20241022&quot;</code> (retired 2025-10-28) and{" "}
-          <code>&quot;client.beta.threads&quot;</code>. Run them yourself.
-        </p>
-        <div className="mt-9 flex flex-wrap items-center gap-3">
-          {installUrl ? (
+        <div className="relative mx-auto max-w-6xl px-6 pb-20 pt-20 sm:pt-28">
+          <Kicker>the deprecation register</Kicker>
+          <h1 className="mt-6 max-w-4xl text-[clamp(2.75rem,7.5vw,5.5rem)] leading-[0.95] text-ink">
+            Know what dies.
+            <br />
+            <span className="em">Before</span> it takes you down.
+          </h1>
+          <p className="mt-8 max-w-xl leading-relaxed text-ink-secondary">
+            Every OpenAI, Anthropic and Google model and API retirement, dated and sourced. aidep
+            finds the ones your code still calls, opens the migration PR, and proves behavior held
+            in your own CI.
+          </p>
+
+          <div className="mt-9 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+            <div className="panel flex items-stretch font-mono text-sm">
+              <code className="flex items-center gap-3 px-4 py-2.5 text-ink">
+                <span className="text-ink-muted">$</span>
+                <span>npx aidep .</span>
+              </code>
+              <span className="label flex items-center border-l border-rule px-3 text-ink-muted">
+                no account
+              </span>
+            </div>
             <a
               href={installUrl}
-              className="inline-block bg-ink px-5 py-2.5 text-sm font-medium text-paper hover:bg-ink/85"
+              className="label border border-ink bg-ink px-4 py-3 text-paper hover:bg-transparent hover:text-ink"
             >
-              Install on GitHub
+              install on github →
             </a>
-          ) : (
-            <a
-              href="#waitlist"
-              className="inline-block bg-ink px-5 py-2.5 text-sm font-medium text-paper hover:bg-ink/85"
-            >
-              Join the waitlist
-            </a>
-          )}
-          <Link
-            href="/dead"
-            className="inline-block border border-rule px-5 py-2.5 text-sm text-ink-secondary hover:border-ink-muted hover:text-ink"
-          >
-            See what is already dead
-          </Link>
-          <Link href="/security" className="text-sm text-link underline underline-offset-4">
-            Security
-          </Link>
+          </div>
+
+          <p className="label mt-6 text-ink-muted">
+            three permissions · findings only, never source ·{" "}
+            <Link href="/security" className="text-ink-secondary underline underline-offset-4 hover:text-ink">
+              security
+            </Link>
+          </p>
         </div>
       </section>
 
-      <section className="mx-auto max-w-5xl px-6 py-14">
-        <p className="text-[11px] uppercase tracking-widest text-ink-muted">The calendar</p>
-        <div className="rule-pair mt-2 flex flex-wrap items-baseline justify-between gap-2 pt-5">
-          <h2 className="text-3xl sm:text-4xl">What dies next</h2>
-          <p className="text-sm text-ink-muted">from the aidep registry, dates as published by each provider</p>
+      {/* ---- stat band ---- */}
+      <section className="border-y border-rule">
+        <div className="mx-auto grid max-w-6xl grid-cols-2 divide-rule md:grid-cols-4 md:divide-x">
+          <Stat n="308,224" label="files still call a model that died in 2025" />
+          <Stat n={String(rows.length)} label="deprecations on file, each with its vendor source" />
+          <Stat n={String(futureRows)} label="retirements still ahead" />
+          <Stat
+            n={next ? daysLabel(daysUntil(next.lead.dies, now)) : "none"}
+            label={next ? `until ${shortId(next.lead)} is gone` : "no dated retirements"}
+          />
         </div>
-        <div className="mt-6 overflow-x-auto">
-          <table className="w-full min-w-[640px] border-collapse text-sm">
+      </section>
+
+      {/* ---- the calendar ---- */}
+      <section className="mx-auto max-w-6xl px-6 py-20">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <Kicker>the calendar</Kicker>
+            <h2 className="mt-4 text-3xl sm:text-4xl">What dies next</h2>
+          </div>
+          <p className="label text-ink-muted">dates as published by each provider</p>
+        </div>
+
+        <div className="panel mt-8 overflow-x-auto">
+          <table className="w-full min-w-[680px] table-fixed border-collapse text-sm">
+            <colgroup>
+              <col className="w-[38%]" />
+              <col className="w-[14%]" />
+              <col className="w-[24%]" />
+              <col />
+            </colgroup>
             <thead>
-              <tr className="border-b border-rule text-left text-xs uppercase tracking-wider text-ink-muted">
-                <th className="py-2 pr-4 font-medium">Identifier</th>
-                <th className="py-2 pr-4 font-medium">Provider</th>
-                <th className="py-2 pr-4 font-medium">Dies</th>
-                <th className="py-2 font-medium">Replacement</th>
+              <tr className="label border-b border-rule text-left text-ink-muted">
+                <th className="px-4 py-2.5 font-normal">identifier</th>
+                <th className="px-4 py-2.5 font-normal">provider</th>
+                <th className="px-4 py-2.5 font-normal">dies</th>
+                <th className="px-4 py-2.5 font-normal">replacement</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="font-mono text-[13px]">
               {upcoming.map(({ lead, alsoDying }) => (
-                <tr key={lead.id} className="border-b border-rule">
-                  <td className="py-2.5 pr-4 font-mono text-[13px] text-ink">
+                <tr key={lead.id} className="border-b border-rule last:border-b-0">
+                  <td className="px-4 py-3 text-ink">
                     {shortId(lead)}
                     {alsoDying > 0 && (
-                      <span className="ml-2 font-body text-xs text-ink-muted">
-                        +{alsoDying} more that day
-                      </span>
+                      <span className="label ml-2 text-ink-muted">+{alsoDying} that day</span>
                     )}
                   </td>
-                  <td className="py-2.5 pr-4 text-ink-secondary">{PROVIDER[lead.provider]}</td>
-                  <td className="whitespace-nowrap py-2.5 pr-4 tabular-nums text-ink">
+                  <td className="px-4 py-3 text-ink-secondary">{PROVIDER[lead.provider]}</td>
+                  <td className="whitespace-nowrap px-4 py-3 tabular-nums text-ink">
                     {formatDies(lead.dies)}
                     <DaysChip days={daysUntil(lead.dies, now)} />
                   </td>
-                  <td className="py-2.5 text-ink-secondary">
+                  <td className="px-4 py-3 text-ink-secondary">
                     {lead.replacement_id ?? lead.replacement_notes ?? "none announced"}
-                  </td>
-                </tr>
-              ))}
-              <tr>
-                <td
-                  colSpan={4}
-                  className="border-b border-rule pb-2 pt-10 text-xs uppercase tracking-wider text-ink-muted"
-                >
-                  Already dead
-                </td>
-              </tr>
-              {dead.map((r) => (
-                <tr key={r.id} className="border-b border-rule">
-                  <td className="py-2.5 pr-4 font-mono text-[13px] text-ink-muted line-through">
-                    {shortId(r)}
-                  </td>
-                  <td className="py-2.5 pr-4 text-ink-muted">{PROVIDER[r.provider]}</td>
-                  <td className="whitespace-nowrap py-2.5 pr-4 text-ink-muted">
-                    {r.dies ? formatDies(r.dies) : "retired"}
-                    <span className="ml-2 inline-block whitespace-nowrap bg-dead-bg px-1.5 py-0.5 text-xs text-dead">
-                      calls fail today
-                    </span>
-                  </td>
-                  <td className="py-2.5 text-ink-secondary">
-                    {r.replacement_id ?? r.replacement_notes ?? "none announced"}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </section>
 
-      <section className="mx-auto max-w-5xl px-6 py-14">
-        <p className="text-[11px] uppercase tracking-widest text-ink-muted">In three moves</p>
-        <h2 className="rule-pair mt-2 pt-5 text-3xl sm:text-4xl">How it works</h2>
-        <ol className="mt-4">
-          <li className="grid gap-3 border-t border-rule py-9 sm:grid-cols-[7rem_1fr]">
-            <div className="figure text-6xl leading-none text-ink-muted">1</div>
-            <div className="max-w-xl">
-              <h3 className="text-xl">Install</h3>
-              <p className="mt-2 leading-relaxed text-ink-secondary">
-                Three GitHub permissions, listed in full on the security page. aidep opens one
-                onboarding PR: the complete audit of your repo, every deprecated identifier with
-                file and line. Nothing else happens until you merge it.
-              </p>
-            </div>
-          </li>
-          <li className="grid gap-3 border-t border-rule py-9 sm:grid-cols-[7rem_1fr]">
-            <div className="figure text-6xl leading-none text-ink-muted">2</div>
-            <div className="max-w-xl">
-              <h3 className="text-xl">Opt in to migration PRs</h3>
-              <p className="mt-2 leading-relaxed text-ink-secondary">
-                One PR per deprecation, grouping every file it touches. The safe rewrites are
-                applied; anything that can&rsquo;t be rewritten safely becomes a manual checklist in
-                the PR body, not a guess. aidep never touches .github/workflows.
-              </p>
-            </div>
-          </li>
-          <li className="grid gap-3 border-t border-rule py-9 sm:grid-cols-[7rem_1fr]">
-            <div className="figure text-6xl leading-none text-ink-muted">3</div>
-            <div>
-              <h3 className="text-xl">Merge on evidence</h3>
-              <p className="mt-2 max-w-xl leading-relaxed text-ink-secondary">
-                Turn on evals and a model-swap PR ships a pack that replays your prompts against the
-                old model and the new one, in your CI with your keys, and posts the result. That
-                comment is the merge decision.
-              </p>
-              <div className="mt-6 max-w-xl border border-rule bg-paper-raised p-4">
-                <p className="text-xs text-ink-muted">github-actions bot commented on #241</p>
-                <pre className="mt-3 overflow-x-auto font-mono text-xs leading-relaxed text-ink">
-                  {`eval gpt-4o-2024-05-13 -> gpt-5.6-sol
-behavior held on 18/20 prompts
-
-held     summarize_invoice     exact match
-held     classify_ticket       exact match
-held     draft_reply           semantic match
-drifted  extract_line_items    "qty" became "quantity"
-drifted  refund_policy_answer  cites a newer cutoff date
-+ 15 more held`}
-                </pre>
-              </div>
-            </div>
-          </li>
-        </ol>
-        <p className="max-w-xl border-t border-rule pt-6 text-sm leading-relaxed text-ink-secondary">
-          Why deterministic matters: OpenAI&rsquo;s own migration guide points at prompt objects
-          that are themselves deprecated (dead Nov 30, 2026). aidep inlines configs instead.
-        </p>
-      </section>
-
-      <section id="waitlist" className="mx-auto max-w-5xl px-6 pb-20 pt-14">
-        <p className="text-[11px] uppercase tracking-widest text-ink-muted">The back page</p>
-        <div className="rule-pair mt-2 pt-5">
-          <h2 className="text-3xl sm:text-4xl">Not ready to install a GitHub App?</h2>
-          <p className="mt-2 max-w-xl leading-relaxed text-ink-secondary">
-            Leave an email. We&rsquo;ll write when the next shutdown date gets close, and nothing
-            else.
+        <div className="mt-10">
+          <Kicker>already dead</Kicker>
+          <div className="panel mt-4 overflow-x-auto">
+            <table className="w-full min-w-[680px] table-fixed border-collapse font-mono text-[13px]">
+              <colgroup>
+                <col className="w-[38%]" />
+                <col className="w-[14%]" />
+                <col className="w-[24%]" />
+                <col />
+              </colgroup>
+              <tbody>
+                {dead.map((r) => (
+                  <tr key={r.id} className="border-b border-rule last:border-b-0">
+                    <td className="struck px-4 py-3">{shortId(r)}</td>
+                    <td className="px-4 py-3 text-ink-muted">{PROVIDER[r.provider]}</td>
+                    <td className="whitespace-nowrap px-4 py-3 tabular-nums text-ink-muted">
+                      {r.dies ? formatDies(r.dies) : "retired"}
+                      <span className="label ml-2 inline-block whitespace-nowrap bg-dead-bg px-1.5 py-0.5 text-dead">
+                        calls fail
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-ink-secondary">
+                      {r.replacement_id ?? r.replacement_notes ?? "none announced"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="label mt-3 text-ink-muted">
+            <Link href="/dead" className="text-ink-secondary underline underline-offset-4 hover:text-ink">
+              the full list, with a github search you can run yourself →
+            </Link>
           </p>
-          <WaitlistForm />
+        </div>
+      </section>
+
+      {/* ---- how it works: herdr's numbered rows ---- */}
+      <section className="border-t border-rule">
+        <div className="mx-auto max-w-6xl px-6 py-20">
+          <Kicker>in three moves</Kicker>
+          <h2 className="mt-4 text-3xl sm:text-4xl">How it works</h2>
+
+          <ol className="mt-10 divide-y divide-rule border-y border-rule">
+            <Step
+              n="01"
+              title="Install"
+              body="Three GitHub permissions, listed in full on the security page. aidep opens one onboarding PR: the complete audit of your repo, every deprecated identifier with file and line. Nothing else happens until you merge it."
+              asideLabel="onboarding pr"
+              aside={`12 findings across 7 files
+ 4 dead · 8 dying · nearest 2026-08-26
+.github/aidep.json added`}
+            />
+            <Step
+              n="02"
+              title="Opt in to migration PRs"
+              body="One PR per retirement date, grouping every file it touches. The safe rewrites are applied; anything that cannot be rewritten safely becomes a manual checklist in the PR body, not a guess. aidep never touches .github/workflows."
+              asideLabel="your agent brief"
+              aside={`sites     src/chat.ts:41, :88
+replace   gpt-5.6-sol
+verified  2026-08-21
+trap      /v1/prompts dies 2026-11-30`}
+            />
+            <Step
+              n="03"
+              title="Merge on evidence"
+              body="Turn on evals and a model-swap PR ships a pack that replays your prompts against the old model and the new one, in your CI with your keys, and posts the result. That comment is the merge decision."
+              asideLabel="github-actions · #241"
+              aside={`gpt-4o-2024-05-13 -> gpt-5.6-sol
+held on 18/20 prompts
+
+held     summarize_invoice
+held     classify_ticket
+drifted  extract_line_items`}
+            />
+          </ol>
+
+          <p className="label mt-8 max-w-2xl leading-relaxed text-ink-muted">
+            why deterministic matters: openai&rsquo;s own migration guide points at prompt objects
+            that are themselves deprecated (dead 2026-11-30). aidep inlines configs instead.
+          </p>
+        </div>
+      </section>
+
+      {/* ---- the objection, answered ---- */}
+      <section className="border-t border-rule">
+        <div className="mx-auto grid max-w-6xl gap-10 px-6 py-20 md:grid-cols-[1fr_1.2fr]">
+          <div>
+            <Kicker>the obvious question</Kicker>
+            <h2 className="mt-4 text-3xl leading-tight sm:text-4xl">
+              Why not just ask <span className="em">my</span> agent?
+            </h2>
+          </div>
+          <div className="space-y-5 leading-relaxed text-ink-secondary">
+            <p>
+              Do. It is good at the rewrite. Two things it structurally cannot do: it cannot tell
+              you about a date you never asked about, and it cannot know what shipped after its
+              training cutoff.
+            </p>
+            <p>
+              Of the 174 registry rows that name a replacement,{" "}
+              <span className="text-ink">29 name a replacement that is itself already deprecated</span>.
+              One in six. An agent working from last year&rsquo;s docs lands on a dead target that
+              often, then says &ldquo;done.&rdquo;
+            </p>
+            <p className="label text-ink-muted">
+              aidep tells it when, and tells it what is true today.{" "}
+              <Link href="/handbook" className="text-ink-secondary underline underline-offset-4 hover:text-ink">
+                handbook →
+              </Link>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ---- closing: insforge's centered band with the numbers underneath ---- */}
+      <section id="waitlist" className="border-t border-rule">
+        <div className="mx-auto max-w-6xl px-6 py-24 text-center">
+          <h2 className="mx-auto max-w-3xl text-[clamp(2.25rem,6vw,4rem)] leading-[0.98]">
+            Give the deadline somewhere to <span className="em">land</span>.
+          </h2>
+          <p className="mx-auto mt-6 max-w-xl leading-relaxed text-ink-secondary">
+            Install once and the register watches your repos. Or leave an email and we will write
+            when the next shutdown date gets close, and nothing else.
+          </p>
+
+          <div className="mx-auto mt-10 flex max-w-md flex-col items-center gap-4">
+            <Mark variant="clean" className="mark text-[2.5rem] text-ink" />
+            <a
+              href={installUrl}
+              className="label w-full border border-ink bg-ink px-6 py-4 text-paper hover:bg-transparent hover:text-ink"
+            >
+              install on github →
+            </a>
+            <p className="label text-ink-muted">or</p>
+            <div className="w-full text-left">
+              <WaitlistForm />
+            </div>
+          </div>
+
+          <div className="mt-20 grid grid-cols-2 gap-4 text-left md:grid-cols-4">
+            <Card n={String(rows.length)} label="deprecations on file" sub="one vendor source each" />
+            <Card n={String(datesThisYear)} label="retirement dates in 2026" sub="6 in 2024, 14 in 2025" />
+            <Card n={String(futureRows)} label="still ahead" sub="dated by the provider" />
+            <Card n="3" label="github permissions" sub="and never a fourth" />
+          </div>
         </div>
       </section>
     </>
+  );
+}
+
+function Card({ n, label, sub }: { n: string; label: string; sub: string }) {
+  return (
+    <div className="panel px-5 py-6 text-center">
+      <p className="label text-ink-muted">{label}</p>
+      <p className="figure mt-3 text-4xl leading-none text-ink sm:text-5xl">{n}</p>
+      <p className="label mt-3 text-ink-muted">{sub}</p>
+    </div>
+  );
+}
+
+function Stat({ n, label }: { n: string; label: string }) {
+  return (
+    <div className="border-b border-rule px-6 py-7 md:border-b-0">
+      <p className="figure text-4xl leading-none text-ink sm:text-5xl">{n}</p>
+      <p className="label mt-3 text-ink-muted">{label}</p>
+    </div>
+  );
+}
+
+function Step({
+  n,
+  title,
+  body,
+  asideLabel,
+  aside,
+}: {
+  n: string;
+  title: string;
+  body: string;
+  asideLabel: string;
+  aside: string;
+}) {
+  return (
+    <li className="grid gap-6 py-10 md:grid-cols-[5rem_1fr_minmax(0,22rem)] md:gap-10">
+      <div className="figure text-5xl leading-none text-ink-muted/60">{n}</div>
+      <div className="max-w-xl">
+        <h3 className="mb-3 text-2xl">{title}</h3>
+        <p className="leading-relaxed text-ink-secondary">{body}</p>
+      </div>
+      <div className="panel font-mono text-xs leading-relaxed text-ink-secondary md:mt-1">
+        <div className="panel-head label">{asideLabel}</div>
+        <pre className="whitespace-pre-wrap px-3.5 py-3">{aside}</pre>
+      </div>
+    </li>
   );
 }
