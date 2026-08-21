@@ -1,0 +1,35 @@
+name: recount
+# The Assistants API shuts down 2026-08-26. Count public exposure on the day
+# and the two after it (ROADMAP.md, Phase 1), and commit each count so the
+# evidence is dated by git rather than by memory. Dispatch it by hand for a
+# baseline on any other day.
+on:
+  schedule:
+    - cron: "0 18 26-28 8 *"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  recount:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: node tools/recount.ts
+        env:
+          GITHUB_SEARCH_TOKEN: ${{ secrets.GITHUB_SEARCH_TOKEN }}
+      - name: Commit the count
+        run: |
+          git add evidence/recount
+          if git diff --cached --quiet; then
+            echo "nothing new"
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" \
+            -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -m "Recount public Assistants API exposure for $(date -u +%F)"
+          git push

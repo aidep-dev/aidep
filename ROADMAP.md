@@ -101,7 +101,8 @@ The OpenAI Assistants API shuts down on 2026-08-26. On 2026-08-18 there were 16,
 calling `client.beta.threads` and 12,448 calling `client.beta.assistants`.
 
 Recount the same queries on the 26th, 27th and 28th. Save the numbers with the method. Then sit on
-them.
+them. `tools/recount.ts` does the count and `.github/workflows/recount.yml` runs it on those three
+days and commits the result to `evidence/recount/`, next to the 08-18 baseline.
 
 Six days is not a sales cycle and the people who were going to migrate already have. What this
 week produces is the one piece of evidence nobody who has not built the registry can publish:

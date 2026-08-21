@@ -1,0 +1,9 @@
+{
+  "date": "2026-08-18",
+  "counted_at": null,
+  "method": "Baseline from ROADMAP.md Phase 1, counted by hand in GitHub code search with the same two quoted strings tools/recount.ts uses. No exact time recorded.",
+  "queries": [
+    { "query": "client.beta.threads", "files": 16320 },
+    { "query": "client.beta.assistants", "files": 12448 }
+  ]
+}
