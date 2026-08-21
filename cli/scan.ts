@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { existsSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { loadRegistry } from "../src/registry.ts";
@@ -8,12 +9,19 @@ import { untarToFiles } from "../src/scanner/tarball.ts";
 
 const target = process.argv[2];
 if (target === undefined || target === "") {
-  console.error("usage: node cli/scan.ts <local-dir | owner/repo>");
+  console.error("usage: aidep <local-dir | owner/repo>");
   process.exit(1);
 }
 
+// Dev reads the sibling checkout; the published CLI reads the registry repo
+// over https, so a stranger's machine needs nothing but this package.
+const SIBLING_REGISTRY = "../aidep-registry/registry";
+const PUBLISHED_REGISTRY = "https://raw.githubusercontent.com/aidep-dev/aidep-registry/master/registry";
+
 const now = new Date().toISOString().slice(0, 10);
-const rows = await loadRegistry();
+const rows = await loadRegistry(
+  process.env.REGISTRY_SOURCE ?? (existsSync(SIBLING_REGISTRY) ? SIBLING_REGISTRY : PUBLISHED_REGISTRY),
+);
 
 if (existsSync(target)) {
   const files = await loadLocalDir(target);

@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // planted-exposure fixture repos contain dead API code on purpose
     "test/fixtures/**",
+    // emitted by `npm run build:cli`
+    "cli/dist/**",
   ]),
 ]);
 

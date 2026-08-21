@@ -30,6 +30,11 @@ npm run scan -- /path/to/your/project
 
 With `GITHUB_TOKEN` set, `npm run scan -- owner/repo` scans a repo by tarball.
 
+The same scanner ships as the `aidep` npm package (`npx aidep .`): no account, no token, the
+registry is read over https. `cli/` is its package root; `npm run build:cli` emits `cli/dist`
+from this repo's `src/scanner` and `src/registry.ts`, and `npm publish` from `cli/` runs the
+build first.
+
 The registry repo stands alone:
 
 ```sh

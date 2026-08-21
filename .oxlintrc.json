@@ -6,7 +6,8 @@
     "build/**",
     "next-env.d.ts",
     "test/fixtures/**",
-    "tools/oxlint/anti-slop/**"
+    "tools/oxlint/anti-slop/**",
+    "cli/dist/**"
   ],
   "jsPlugins": [
     {

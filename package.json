@@ -12,7 +12,8 @@
     "lint:slop": "oxlint --config .oxlintrc.json",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "scan": "node cli/scan.ts"
+    "scan": "node cli/scan.ts",
+    "build:cli": "tsc -p cli/tsconfig.json"
   },
   "dependencies": {
     "marked": "^18.0.10",

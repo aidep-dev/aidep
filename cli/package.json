@@ -1,0 +1,29 @@
+{
+  "name": "aidep",
+  "version": "0.1.0",
+  "description": "Scan a directory for calls to retired or deprecated OpenAI, Anthropic and Google models and APIs. No account, no token, nothing leaves your machine.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "aidep": "dist/cli/scan.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aidep-dev/aidep.git",
+    "directory": "cli"
+  },
+  "homepage": "https://aidep.dev",
+  "dependencies": {
+    "tar": "^7.5.22",
+    "zod": "^4.4.3"
+  },
+  "scripts": {
+    "prepublishOnly": "cd .. && npm run build:cli"
+  }
+}

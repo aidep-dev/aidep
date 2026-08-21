@@ -36,3 +36,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+      # the published CLI: build it and run it the way a stranger would, with
+      # no sibling registry checkout and no REGISTRY_SOURCE
+      - run: npm run build:cli
+      - run: env -u REGISTRY_SOURCE node cli/dist/cli/scan.js test/fixtures/fixture-repo
