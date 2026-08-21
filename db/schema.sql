@@ -66,6 +66,8 @@ create table if not exists prs (
   created_at timestamptz not null default now(),
   unique (repo_id, number)
 );
+-- set by the pull_request.closed handler; the funnel's "value delivered" step
+alter table prs add column if not exists merged_at timestamptz;
 
 -- fake-door signal: who clicked upgrade/start-free before billing exists
 create table if not exists interest (

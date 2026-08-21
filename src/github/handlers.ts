@@ -124,14 +124,16 @@ export function registerHandlers(app: App): void {
       // them and prCap keeps counting the dead branch. Release them back to
       // 'open' so the exposure can be re-proposed. (Onboarding PR handled
       // below; it is not in the prs table so getPrByNumber won't match it.)
-      if (!payload.pull_request.merged) {
-        const pr = await getPrByNumber(payload.repository.id, payload.number);
-        if (pr) {
-          await sql`
-            update findings set status = 'open', pr_id = null
-            where repo_id = ${payload.repository.id} and pr_id = ${pr.id} and status = 'pr_open'`;
-        }
+      const pr = await getPrByNumber(payload.repository.id, payload.number);
+      if (!pr) return;
+      if (payload.pull_request.merged) {
+        // the one number that says the product delivered; read by /api/funnel
+        await sql`update prs set merged_at = now() where id = ${pr.id} and merged_at is null`;
+        return;
       }
+      await sql`
+        update findings set status = 'open', pr_id = null
+        where repo_id = ${payload.repository.id} and pr_id = ${pr.id} and status = 'pr_open'`;
       return;
     }
 

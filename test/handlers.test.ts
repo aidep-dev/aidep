@@ -301,6 +301,31 @@ describe("pull_request.closed/reopened (migration PR)", () => {
     expect(f.pr_id).toBeNull();
   });
 
+  it("merged migration PR stamps merged_at and leaves its findings to the next scan", async () => {
+    await seedRepo(REPO_A, { onboarded: true });
+    const prId = await createPrRecord({
+      repoId: REPO_A,
+      number: 23,
+      deprecationEvent: EVENT,
+      branch: "aidep/openai-model-gpt-4-turbo",
+    });
+    await seedMigrationFinding(Number(prId), "pr_open");
+
+    await receive("pull_request", {
+      action: "closed",
+      number: 23,
+      installation: inst(INST),
+      repository: { id: REPO_A },
+      pull_request: { number: 23, merged: true, body: "", head: { ref: "aidep/openai-model-gpt-4-turbo" } },
+    });
+
+    const [pr] = await sql`select merged_at from prs where id = ${prId}`;
+    expect(pr.merged_at).not.toBeNull();
+    // the rescan after merge resolves them; the handler does not guess
+    const [f] = await sql`select status from findings where repo_id = ${REPO_A}`;
+    expect(f.status).toBe("pr_open");
+  });
+
   it("reopened migration PR restores its findings to pr_open", async () => {
     await seedRepo(REPO_A, { onboarded: true });
     const prId = await createPrRecord({
