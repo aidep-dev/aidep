@@ -40,7 +40,7 @@ describe("buildOnboardingPr", () => {
       "## What we found",
       "## What happens after you merge",
       "## Config",
-      "Questions? https://aidep.test/docs",
+      "Questions? https://aidep.test/handbook",
       "- [ ] <!-- aidep-rebase -->",
       "<!-- aidep:body-hash:",
     ];

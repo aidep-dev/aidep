@@ -44,7 +44,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ## Pricing shape
 
 - Everything is free on every repo, migration PRs included.
-- The eval pack is the only paid line (aidep Proof, $99/org/mo), gated inside `evalPackFor` in `src/pipeline.ts` and nowhere else. Never gate at the API boundary and never gate the PR: an unpaid install still gets the full migration PR, with the one-line skip reason where the eval block would be.
+- The eval pack is the only paid line (aidep Proof, $39/org/mo), gated inside `evalPackFor` in `src/pipeline.ts` and nowhere else. Never gate at the API boundary and never gate the PR: an unpaid install still gets the full migration PR, with the one-line skip reason where the eval block would be.
 
 ## Transforms
 
