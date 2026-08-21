@@ -32,8 +32,11 @@ Anthropic and Google deprecation pages, and when a page changes it opens a pull
 request rather than writing to a database. A human merges it. That means every
 change to the facts is reviewable, reversible, and has a diff.
 
-Each row carries `source_url` and `verified_at`. You can audit any claim we make
-without trusting us, which is the point.
+Each row carries `source_url` and `verified_at`: the vendor page it came from and
+the date that row was last confirmed against it. The poller reads every page daily
+but moves `verified_at` only when a row changes, so an old date means the page has
+said the same thing since then, not that nobody looked. You can audit any claim we
+make without trusting us, which is the point.
 
 A parse returning zero rows for a provider that has rows is treated as a fetch
 anomaly, never as a mass removal.
