@@ -150,7 +150,3 @@ lower price automatically.
 
 The current number has not yet survived contact with a single price conversation.
 When it does, this page gets updated with what was learned.
-
-## What it costs us to run
-
-See [staying alive](/handbook/staying-alive).
