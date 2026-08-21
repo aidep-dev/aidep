@@ -56,8 +56,9 @@ dashboard. Nothing automated ever contacts a repo. This is a product invariant, 
 a current policy, and it is the reason this category is full of bots nobody trusts.
 
 **Decisions get recorded, not relitigated.** When something is decided, it is
-written down with the reasoning and the counter-argument. Reversing it means a new
-entry saying why, not a quiet edit.
+written down with the reasoning and the counter-argument in
+[DECISIONS.md](https://github.com/aidep-dev/aidep/blob/master/DECISIONS.md).
+Reversing it means a new entry saying why, not a quiet edit.
 
 **Corrections in public.** The registry is the product. If a row is wrong, the fix
 is a pull request anyone can read.
