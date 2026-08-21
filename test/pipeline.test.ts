@@ -7,7 +7,7 @@ import { AidepConfigSchema } from "../src/config.ts";
 import { getRepo, markOnboarded, sql, upsertInstallation, upsertRepo } from "../src/db/index.ts";
 import { migrate } from "../src/db/migrate.ts";
 import { buildOnboardingPr, openOnboardingPr } from "../src/github/onboarding.ts";
-import { onboardRepo, runJob, scanRepo } from "../src/pipeline.ts";
+import { isIgnored, onboardRepo, runJob, scanRepo } from "../src/pipeline.ts";
 
 // Recorder octokit behind the one seam both handlers and pipeline share.
 const state = vi.hoisted(() => ({
@@ -150,6 +150,21 @@ it("ignore globs drop exact files and whole directories", async () => {
 
   const { result } = await scanRepo(3103);
   expect(result.findings.map((f) => f.path)).toEqual(["src/a.ts"]);
+});
+
+it("ignore globs cover dotfiles beneath the directory, which shell ** does not", () => {
+  // the two paths that leaked through test/** on our own repo, 2026-08-21
+  const leaked = [
+    "test/fixtures/fixture-repo/.env.example",
+    "test/fixtures/fixture-repo/.github/workflows/nightly.yml",
+  ];
+  for (const path of leaked) {
+    expect(isIgnored(path, ["test/**"]), path).toBe(true);
+    expect(isIgnored(path, ["test"]), path).toBe(true);
+  }
+  // and the prefix test must not over-match a sibling that merely starts with the name
+  expect(isIgnored("tests/a.ts", ["test/**"])).toBe(false);
+  expect(isIgnored("testing.ts", ["test"])).toBe(false);
 });
 
 it("rereadConfig fetches, persists, and applies the pushed config", async () => {

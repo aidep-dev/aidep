@@ -87,11 +87,17 @@ function toBuffer(data: unknown): Buffer {
   throw new TypeError(`tarball response was ${typeof data}, expected binary`);
 }
 
-/** A glob ignores the path itself or anything beneath it: "docs" drops docs/x/y.md. */
-function isIgnored(path: string, globs: string[]): boolean {
+/**
+ * A glob ignores the path itself or anything beneath it: "docs" drops docs/x/y.md.
+ *
+ * Beneath-it is a prefix test, not `base/**`: matchesGlob follows shell rules
+ * where `**` skips dotfiles, so "vendor/**" would still surface vendor/.env and
+ * vendor/.github/. Found 2026-08-21 when test/** left two fixture dotfiles open.
+ */
+export function isIgnored(path: string, globs: string[]): boolean {
   return globs.some((g) => {
-    const base = g.replace(/\/+$/, "");
-    return matchesGlob(path, base) || matchesGlob(path, `${base}/**`);
+    const base = g.replace(/\/+$/, "").replace(/\/\*\*$/, "");
+    return path === base || path.startsWith(`${base}/`) || matchesGlob(path, g);
   });
 }
 
