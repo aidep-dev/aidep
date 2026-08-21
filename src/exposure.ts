@@ -10,7 +10,7 @@ export interface ExposureRow {
 
 /**
  * Whether an identifier is distinctive enough that a code-search count means
- * anything. Legacy ids like "ada" and "babbage" are ordinary English and match
+ * anything. Legacy ids like `ada` and `babbage` are ordinary English and match
  * hundreds of millions of files as substrings, so a count against them is
  * noise dressed as evidence. Require either a version-ish shape (a digit plus
  * a separator) or a long dotted/slashed API path.
