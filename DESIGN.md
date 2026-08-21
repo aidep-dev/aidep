@@ -117,9 +117,31 @@ Rules that matter more than the scale:
 
 These already exist. Match them rather than inventing a variant.
 
-**Header nav.** A `border-b border-rule` strip, `max-w-5xl` inner, items
-`text-sm text-ink-secondary hover:text-ink`. No active-state underline; the page
-title says where you are.
+**Masthead.** Three bands in `app/(marketing)/layout.tsx`, in this order: a
+utility strip in 11px caps, the nameplate (the wordmark in Newsreader at
+`text-5xl`/`text-6xl`, larger than anything else on any page, with the standing
+tagline right-aligned), then the folio rule, a `border-y-[3px] border-ink` band
+carrying the nav in caps. That stack is what makes the site read as a paper
+rather than a landing page. Do not shrink the nameplate to match a heading.
+
+**Rule pair (`.rule-pair`).** Thick over thin, the newspaper section rule. Use it
+above every section head, with a kicker in 11px caps sitting above the rule.
+A plain `border-t` is for rows inside a table, not for structure.
+
+**Dateline.** An 11px caps band under the folio: what the register holds, the
+providers, today's date. Only on the front page.
+
+**Drop cap (`.dropcap`).** The opening paragraph of the lead story, and nowhere
+else. The paragraph must start on a letter, since `::first-letter` will happily
+take the "1" out of "16,320" and set it three lines tall.
+
+**Display figures (`.figure`).** Lining tabular numerals in the display serif for
+counts set large. The front page headline number is `clamp(4rem,15vw,9.5rem)`,
+and the scale contrast between that and 16px body is the point, not an accident.
+
+**Header nav.** Items are `text-xs uppercase tracking-widest text-ink-secondary
+hover:text-ink` inside the folio rule. No active-state underline; the page title
+says where you are.
 
 **Button, primary.** `bg-ink text-paper px-5 py-2.5 rounded-sm font-medium`.
 Inverted ink on paper. One per view, at most.

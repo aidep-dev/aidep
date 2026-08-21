@@ -41,10 +41,21 @@ function DaysChip({ days }: { days: number }) {
 export default async function LandingPage() {
   const rows = await loadRegistry();
   const now = new Date();
-  const upcoming = rows
+  // One row per retirement date. Six Sora variants sharing 2026-09-24 is one
+  // deadline, not six, and printing it six times buries the rest of the year.
+  type Dated = RegistryRow & { dies: string };
+  const byDate = new Map<string, Dated[]>();
+  for (const r of rows
     .filter((r): r is RegistryRow & { dies: string } => r.dies !== null && daysUntil(r.dies, now) >= 0)
-    .sort((a, b) => a.dies.localeCompare(b.dies) || a.id.localeCompare(b.id))
-    .slice(0, 8);
+    .sort((a, b) => a.dies.localeCompare(b.dies) || a.id.localeCompare(b.id))) {
+    const same = byDate.get(r.dies);
+    if (same) same.push(r);
+    else byDate.set(r.dies, [r]);
+  }
+  const upcoming = [...byDate.values()].slice(0, 8).map((group) => ({
+    lead: group[0],
+    alsoDying: group.length - 1,
+  }));
   const dead = DEAD_PICKS.map((id) => rows.find((r) => r.id === id)).filter(
     (r): r is RegistryRow => r !== undefined,
   );
@@ -54,18 +65,38 @@ export default async function LandingPage() {
 
   return (
     <>
-      <section className="mx-auto max-w-5xl px-6 pb-14 pt-16 sm:pt-24">
-        <p className="text-xs uppercase tracking-widest text-ink-muted">
-          {rows.length} deprecations tracked across OpenAI, Anthropic, and Google
+      {/* Dateline strip: what the register holds, as of when. */}
+      <div className="mx-auto max-w-5xl px-6">
+        <div className="flex flex-wrap justify-between gap-x-6 gap-y-1 border-b border-rule py-2 text-[11px] uppercase tracking-widest text-ink-muted">
+          <span>
+            <span className="text-ink">{rows.length}</span> deprecations on file
+          </span>
+          <span>OpenAI · Anthropic · Google</span>
+          <span>
+            {now.toLocaleDateString("en-US", {
+              weekday: "long",
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })}
+          </span>
+        </div>
+      </div>
+
+      <section className="mx-auto max-w-5xl px-6 pb-16 pt-10 sm:pt-14">
+        <p className="text-xs uppercase tracking-widest text-ink-muted">Still shipping to production</p>
+        <h1 className="figure mt-3 text-[clamp(4rem,15vw,9.5rem)] leading-[0.86] text-ink">308,224</h1>
+        <p className="mt-4 max-w-3xl text-2xl leading-[1.15] tracking-tight sm:text-4xl">
+          files on GitHub still call a model that died ten months ago.
         </p>
-        <h1 className="mt-5 max-w-4xl text-4xl leading-[1.08] tracking-tight sm:text-5xl">
-          308,224 files on GitHub still call a model that died ten months ago.
-        </h1>
-        <p className="mt-6 max-w-2xl text-lg leading-relaxed text-ink-secondary">
-          16,320 more call an API that shuts down on August 26. aidep finds yours, opens the
-          migration PR, and proves behavior held.
+        {/* The drop cap takes the first character, so this paragraph has to open
+         * on a letter. Starting it on a figure sets a giant "1" beside "6,320". */}
+        <p className="dropcap mt-8 max-w-2xl leading-relaxed text-ink-secondary">
+          Another 16,320 call an API that shuts down on August 26. Nobody wakes up on the fifteenth
+          of October and thinks to check for retired model ids, which is exactly why those numbers
+          are what they are. aidep finds yours, opens the migration PR, and proves behavior held.
         </p>
-        <p className="mt-2 max-w-2xl text-sm text-ink-muted">
+        <p className="mt-4 max-w-2xl text-sm text-ink-muted">
           Counts from GitHub code search on 2026-08-18, one query each:{" "}
           <code>&quot;claude-3-5-sonnet-20241022&quot;</code> (retired 2025-10-28) and{" "}
           <code>&quot;client.beta.threads&quot;</code>. Run them yourself.
@@ -99,8 +130,9 @@ export default async function LandingPage() {
       </section>
 
       <section className="mx-auto max-w-5xl px-6 py-14">
-        <div className="flex flex-wrap items-baseline justify-between gap-2 border-t-2 border-ink pt-6">
-          <h2 className="text-2xl sm:text-3xl">What dies next</h2>
+        <p className="text-[11px] uppercase tracking-widest text-ink-muted">The calendar</p>
+        <div className="rule-pair mt-2 flex flex-wrap items-baseline justify-between gap-2 pt-5">
+          <h2 className="text-3xl sm:text-4xl">What dies next</h2>
           <p className="text-sm text-ink-muted">from the aidep registry, dates as published by each provider</p>
         </div>
         <div className="mt-6 overflow-x-auto">
@@ -114,16 +146,23 @@ export default async function LandingPage() {
               </tr>
             </thead>
             <tbody>
-              {upcoming.map((r) => (
-                <tr key={r.id} className="border-b border-rule">
-                  <td className="py-2.5 pr-4 font-mono text-[13px] text-ink">{shortId(r)}</td>
-                  <td className="py-2.5 pr-4 text-ink-secondary">{PROVIDER[r.provider]}</td>
-                  <td className="whitespace-nowrap py-2.5 pr-4 text-ink">
-                    {formatDies(r.dies)}
-                    <DaysChip days={daysUntil(r.dies, now)} />
+              {upcoming.map(({ lead, alsoDying }) => (
+                <tr key={lead.id} className="border-b border-rule">
+                  <td className="py-2.5 pr-4 font-mono text-[13px] text-ink">
+                    {shortId(lead)}
+                    {alsoDying > 0 && (
+                      <span className="ml-2 font-body text-xs text-ink-muted">
+                        +{alsoDying} more that day
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-2.5 pr-4 text-ink-secondary">{PROVIDER[lead.provider]}</td>
+                  <td className="whitespace-nowrap py-2.5 pr-4 tabular-nums text-ink">
+                    {formatDies(lead.dies)}
+                    <DaysChip days={daysUntil(lead.dies, now)} />
                   </td>
                   <td className="py-2.5 text-ink-secondary">
-                    {r.replacement_id ?? r.replacement_notes ?? "none announced"}
+                    {lead.replacement_id ?? lead.replacement_notes ?? "none announced"}
                   </td>
                 </tr>
               ))}
@@ -158,10 +197,11 @@ export default async function LandingPage() {
       </section>
 
       <section className="mx-auto max-w-5xl px-6 py-14">
-        <h2 className="border-t-2 border-ink pt-6 text-2xl sm:text-3xl">How it works</h2>
+        <p className="text-[11px] uppercase tracking-widest text-ink-muted">In three moves</p>
+        <h2 className="rule-pair mt-2 pt-5 text-3xl sm:text-4xl">How it works</h2>
         <ol className="mt-4">
           <li className="grid gap-3 border-t border-rule py-9 sm:grid-cols-[7rem_1fr]">
-            <div className="font-display text-4xl text-ink-muted">1</div>
+            <div className="figure text-6xl leading-none text-ink-muted">1</div>
             <div className="max-w-xl">
               <h3 className="text-xl">Install</h3>
               <p className="mt-2 leading-relaxed text-ink-secondary">
@@ -172,7 +212,7 @@ export default async function LandingPage() {
             </div>
           </li>
           <li className="grid gap-3 border-t border-rule py-9 sm:grid-cols-[7rem_1fr]">
-            <div className="font-display text-4xl text-ink-muted">2</div>
+            <div className="figure text-6xl leading-none text-ink-muted">2</div>
             <div className="max-w-xl">
               <h3 className="text-xl">Opt in to migration PRs</h3>
               <p className="mt-2 leading-relaxed text-ink-secondary">
@@ -183,7 +223,7 @@ export default async function LandingPage() {
             </div>
           </li>
           <li className="grid gap-3 border-t border-rule py-9 sm:grid-cols-[7rem_1fr]">
-            <div className="font-display text-4xl text-ink-muted">3</div>
+            <div className="figure text-6xl leading-none text-ink-muted">3</div>
             <div>
               <h3 className="text-xl">Merge on evidence</h3>
               <p className="mt-2 max-w-xl leading-relaxed text-ink-secondary">
@@ -215,8 +255,9 @@ drifted  refund_policy_answer  cites a newer cutoff date
       </section>
 
       <section id="waitlist" className="mx-auto max-w-5xl px-6 pb-20 pt-14">
-        <div className="border-t-2 border-ink pt-6">
-          <h2 className="text-2xl sm:text-3xl">Not ready to install a GitHub App?</h2>
+        <p className="text-[11px] uppercase tracking-widest text-ink-muted">The back page</p>
+        <div className="rule-pair mt-2 pt-5">
+          <h2 className="text-3xl sm:text-4xl">Not ready to install a GitHub App?</h2>
           <p className="mt-2 max-w-xl leading-relaxed text-ink-secondary">
             Leave an email. We&rsquo;ll write when the next shutdown date gets close, and nothing
             else.

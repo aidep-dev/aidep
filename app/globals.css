@@ -100,6 +100,35 @@ h3 {
   font-family: var(--font-display), serif;
 }
 
+/* ---- editorial primitives ----
+ * The broadsheet character lives in three things Tailwind cannot say directly:
+ * a drop cap, a rule pair (thick over thin, the way a nameplate is set), and
+ * headline figures that use lining tabular numerals so a 6-digit count does not
+ * wobble. Everything else is utilities. */
+
+.dropcap::first-letter {
+  float: left;
+  font-family: var(--font-display), serif;
+  font-size: 3.1em;
+  line-height: 0.82;
+  padding: 0.06em 0.09em 0 0;
+  color: var(--ink);
+}
+
+/* Thick over thin, with the hairline set just below. A newspaper section rule. */
+.rule-pair {
+  border-top: 3px solid var(--ink);
+  box-shadow: 0 2px 0 -1px var(--rule);
+}
+
+/* Headline figures: lining, tabular, tightened. For counts set at display size. */
+.figure {
+  font-family: var(--font-display), serif;
+  font-variant-numeric: lining-nums tabular-nums;
+  letter-spacing: -0.03em;
+  font-feature-settings: "kern" 1;
+}
+
 /* Styles the HTML that `marked` renders from handbook/*.md. Tokens only, no
  * typography plugin: the rules here are the same ones the hand-built pages
  * follow, so a handbook page and /security read as the same document. */
