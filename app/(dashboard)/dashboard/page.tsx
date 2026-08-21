@@ -109,7 +109,7 @@ export default async function DashboardPage() {
                 <td className="py-4 pr-4">
                   <Link
                     href={`/dashboard/${r.owner}/${r.name}`}
-                    className="text-link hover:underline"
+                    className="text-ink underline underline-offset-4"
                   >
                     {r.owner}/{r.name}
                   </Link>

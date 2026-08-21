@@ -127,7 +127,7 @@ export default async function RepoPage({
                       {" · "}
                       <a
                         href={reg.migration_url}
-                        className="text-link hover:underline"
+                        className="text-ink underline underline-offset-4"
                       >
                         migration guide
                       </a>
@@ -166,7 +166,7 @@ export default async function RepoPage({
                 {g.pr ? (
                   <a
                     href={`https://github.com/${fullName}/pull/${g.pr.number}`}
-                    className="text-sm text-link hover:underline"
+                    className="text-sm text-ink underline underline-offset-4"
                   >
                     PR #{g.pr.number} open · eval: {g.pr.evalStatus}
                   </a>

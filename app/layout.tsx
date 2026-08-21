@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Newsreader, Public_Sans } from "next/font/google";
+import { Geist_Mono, Newsreader } from "next/font/google";
 import { themeScript } from "./theme.tsx";
 import "./globals.css";
 
@@ -8,11 +8,6 @@ const display = Newsreader({
   subsets: ["latin"],
   style: ["normal", "italic"],
   axes: ["opsz"],
-});
-
-const body = Public_Sans({
-  variable: "--font-body",
-  subsets: ["latin"],
 });
 
 const mono = Geist_Mono({
@@ -32,7 +27,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     // first client HTML differ by that attribute on purpose.
     <html
       lang="en"
-      className={`${display.variable} ${body.variable} ${mono.variable} h-full antialiased`}
+      className={`${display.variable} ${mono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>

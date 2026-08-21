@@ -91,7 +91,7 @@ export default function SecurityPage() {
       <section className="mt-14 border-t border-rule pt-6">
         <p className="text-sm text-ink-secondary">
           Found a vulnerability? Email{" "}
-          <a href={`mailto:security@${domain}`} className="text-link underline">
+          <a href={`mailto:security@${domain}`} className="text-ink underline underline-offset-4">
             security@{domain}
           </a>
           .

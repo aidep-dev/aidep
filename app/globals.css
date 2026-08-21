@@ -2,10 +2,9 @@
 
 /* aidep design tokens.
  *
- * A register of dying model APIs, set the way a terminal and a ledger would
- * agree to set it. Dark-first. A serif voice for the few sentences that are
- * ours, mono for everything that is data, and one accent used only to point.
- * Three status colors carry meaning and never decorate.
+ * A register of dying model APIs. Dark-first. A serif voice for sentences,
+ * mono for everything that is a fact. Three status colors carry meaning and
+ * never decorate; there is no accent.
  *
  * Three theme states, the GitHub model:
  *   no attribute          follow the OS (prefers-color-scheme)
@@ -33,8 +32,6 @@
   --dying-bg: oklch(23% 0.045 80);
   --clean: oklch(72% 0.11 155);
   --clean-bg: oklch(21% 0.04 155);
-  --link: oklch(78% 0.09 80);
-  --accent: oklch(78% 0.12 80);
 }
 
 @media (prefers-color-scheme: light) {
@@ -55,8 +52,6 @@
     --dying-bg: oklch(95.5% 0.035 85);
     --clean: oklch(48% 0.09 155);
     --clean-bg: oklch(95.5% 0.03 155);
-    --link: oklch(48% 0.1 70);
-    --accent: oklch(55% 0.12 70);
   }
 }
 
@@ -77,8 +72,6 @@
   --dying-bg: oklch(95.5% 0.035 85);
   --clean: oklch(48% 0.09 155);
   --clean-bg: oklch(95.5% 0.03 155);
-  --link: oklch(48% 0.1 70);
-  --accent: oklch(55% 0.12 70);
 }
 
 @theme inline {
@@ -96,17 +89,14 @@
   --color-dying-bg: var(--dying-bg);
   --color-clean: var(--clean);
   --color-clean-bg: var(--clean-bg);
-  --color-link: var(--link);
-  --color-accent: var(--accent);
   --font-display: var(--font-display);
-  --font-body: var(--font-body);
   --font-mono: var(--font-mono);
 }
 
 body {
   background: var(--paper);
   color: var(--ink);
-  font-family: var(--font-body), sans-serif;
+  font-family: var(--font-display), serif;
   font-feature-settings: "kern" 1, "liga" 1;
 }
 
@@ -119,9 +109,8 @@ h3 {
 }
 
 /* ---- the page grid ----
- * Every reference site sits the content on a visible, faint grid. Ours is a
- * 64px field drawn in the rule color at low contrast, fixed to the viewport so
- * content scrolls over it. It reads as engineered rather than decorated. */
+ * A 64px field drawn in the rule color at low contrast, fixed to the viewport
+ * so content scrolls over it. It reads as engineered rather than decorated. */
 .grid-field {
   background-image:
     linear-gradient(to right, color-mix(in oklch, var(--rule) 55%, transparent) 1px, transparent 1px),
@@ -141,19 +130,6 @@ h3 {
   font-variant-numeric: tabular-nums;
 }
 
-/* Bracketed label, the antimattr idiom: [shipping starts q4]. The brackets are
- * real characters in the markup; this only sets the voice. */
-.label-bracket::before {
-  content: "[";
-  opacity: 0.5;
-  margin-right: 0.15em;
-}
-.label-bracket::after {
-  content: "]";
-  opacity: 0.5;
-  margin-left: 0.15em;
-}
-
 /* ---- display figures ----
  * Big counts in the serif, lining tabular numerals, tight. */
 .figure {
@@ -161,13 +137,6 @@ h3 {
   font-variant-numeric: lining-nums tabular-nums;
   letter-spacing: -0.04em;
   font-weight: 400;
-}
-
-/* An italic word inside a serif headline, antimattr's trick for the one word
- * that carries the sentence. */
-.em {
-  font-style: italic;
-  color: var(--accent);
 }
 
 /* Strike-through in the dead color for a retired id: "delete the unnecessary". */
@@ -193,13 +162,14 @@ h3 {
 }
 
 /* ---- the mark ----
- * Setting sun on a horizon rule. Inline SVG wherever it appears; this only
- * sizes it by the surrounding font so it sits on the text baseline. */
+ * The sun on its horizon rule, inline next to the name. One x-height tall and
+ * sat on the baseline, so the horizon is the baseline and the sun rises to the
+ * x-height. The viewBox ends at the bottom of the rule, which makes this work. */
 .mark {
   display: inline-block;
-  width: 1em;
-  height: 1em;
-  vertical-align: -0.12em;
+  height: 1ex;
+  width: auto;
+  vertical-align: baseline;
 }
 
 /* Styles the HTML that `marked` renders from handbook/*.md. Tokens only, no
@@ -259,7 +229,7 @@ h3 {
 }
 
 .handbook-prose a {
-  color: var(--link);
+  color: var(--ink);
   text-decoration: underline;
   text-underline-offset: 2px;
 }

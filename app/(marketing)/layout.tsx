@@ -1,13 +1,13 @@
 import Link from "next/link";
-import { Mark } from "../mark.tsx";
+import { Wordmark } from "../mark.tsx";
 import { ThemeToggle } from "../theme.tsx";
 
+/* The header carries the product and the trust. Everything else is in the footer. */
 const NAV = [
   { href: "/dead", label: "dead" },
-  { href: "/handbook", label: "handbook" },
   { href: "/security", label: "security" },
-  { href: "/pricing", label: "pricing" },
 ];
+const FOOTER_NAV = [...NAV, { href: "/handbook", label: "handbook" }, { href: "/pricing", label: "pricing" }];
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   const slug = process.env.NEXT_PUBLIC_GITHUB_APP_SLUG;
@@ -17,9 +17,8 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
     <div className="grid-field flex min-h-full flex-1 flex-col">
       <header className="sticky top-0 z-10 border-b border-rule bg-paper/85 backdrop-blur-sm">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-6 py-3">
-          <Link href="/" className="flex items-center gap-2.5 text-ink">
-            <Mark className="mark text-[1.35rem]" />
-            <span className="font-display text-2xl leading-none tracking-tight">aidep</span>
+          <Link href="/" className="text-xl text-ink">
+            <Wordmark />
           </Link>
 
           <nav className="label hidden items-center gap-7 text-ink-secondary md:flex">
@@ -31,13 +30,6 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
           </nav>
 
           <div className="label flex items-center gap-4">
-            <ThemeToggle />
-            <Link
-              href="/dashboard"
-              className="hidden text-ink-secondary hover:text-ink sm:inline"
-            >
-              dashboard
-            </Link>
             <a
               href={installUrl}
               className="border border-rule-strong px-3 py-1.5 text-ink hover:border-ink hover:bg-ink hover:text-paper"
@@ -53,15 +45,18 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
       <footer className="border-t border-rule">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-8 gap-y-3 px-6 py-5">
           <div className="label flex flex-wrap items-center gap-x-6 gap-y-2 text-ink-muted">
-            <span className="flex items-center gap-2 text-ink-secondary">
-              <Mark className="mark" />
-              aidep
+            <span className="text-sm normal-case text-ink-secondary">
+              <Wordmark />
             </span>
-            {NAV.map((item) => (
+            {FOOTER_NAV.map((item) => (
               <Link key={item.href} href={item.href} className="hover:text-ink">
                 {item.label}
               </Link>
             ))}
+            <Link href="/dashboard" className="hover:text-ink">
+              dashboard
+            </Link>
+            <ThemeToggle />
           </div>
           <p className="label text-ink-muted">
             findings, never source · registry cc0 · © 2026

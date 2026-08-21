@@ -68,7 +68,7 @@ export default async function DeadPage() {
       {listed.length === 0 ? (
         <p className="mt-12 max-w-2xl border-t border-rule pt-6 leading-relaxed text-ink-secondary">
           The counts have not been collected yet. The registry below is live either way: see{" "}
-          <Link href="/" className="text-link underline">
+          <Link href="/" className="text-ink underline underline-offset-4">
             the front page
           </Link>{" "}
           for what dies next.

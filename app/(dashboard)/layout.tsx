@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { Wordmark } from "../mark.tsx";
 import { requireSession } from "./auth.ts";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
@@ -8,8 +9,8 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     <>
       <header className="border-b border-rule">
         <div className="mx-auto flex w-full max-w-5xl items-baseline justify-between px-6 py-3">
-          <Link href="/" className="font-display text-2xl leading-none">
-            aidep
+          <Link href="/" className="text-xl text-ink">
+            <Wordmark />
           </Link>
           <div className="flex items-baseline gap-4 text-sm">
             <span className="text-ink-secondary">{session.login}</span>

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { impactFigures } from "../../src/exposure.ts";
 import { loadRegistry, type RegistryRow } from "../../src/registry.ts";
 import { Mark } from "../mark.tsx";
 import { daysLabel, daysUntil, formatDies } from "./dates.ts";
@@ -46,7 +45,7 @@ function Kicker({ children }: { children: React.ReactNode }) {
 }
 
 export default async function LandingPage() {
-  const [rows, impact] = await Promise.all([loadRegistry(), impactFigures()]);
+  const rows = await loadRegistry();
   const now = new Date();
 
   // One row per retirement date. Six Sora variants sharing 2026-09-24 is one
@@ -67,7 +66,6 @@ export default async function LandingPage() {
   const dead = DEAD_PICKS.map((id) => rows.find((r) => r.id === id)).filter(
     (r): r is RegistryRow => r !== undefined,
   );
-  const futureRows = rows.filter((r) => r.dies !== null && daysUntil(r.dies, now) >= 0).length;
   // Rows whose named replacement is itself in the registry. replacement_id is a
   // bare api id ("gpt-4o-mini"), not a registry id, so it is matched against
   // every row's api_ids. Every registry row is deprecated or retired, so a hit
@@ -78,10 +76,6 @@ export default async function LandingPage() {
   const rottedReplacements = withReplacement.filter((r) =>
     knownApiIds.has(r.replacement_id as string),
   ).length;
-  const datesThisYear = new Set(
-    rows.map((r) => r.dies).filter((d): d is string => d !== null && d.startsWith(String(now.getFullYear()))),
-  ).size;
-  const next = upcoming[0];
 
   const slug = process.env.NEXT_PUBLIC_GITHUB_APP_SLUG;
   const installUrl = slug ? `https://github.com/apps/${slug}/installations/new` : "#waitlist";
@@ -100,149 +94,124 @@ export default async function LandingPage() {
         </div>
 
         <div className="relative mx-auto max-w-6xl px-6 pb-20 pt-20 sm:pt-28">
-          <Kicker>the deprecation register</Kicker>
-          <h1 className="mt-6 max-w-4xl text-[clamp(2.75rem,7.5vw,5.5rem)] leading-[0.95] text-ink">
-            Know what dies.
+          <Kicker>openai · anthropic · google</Kicker>
+          <h1 className="mt-6 max-w-5xl text-[clamp(2.75rem,7.5vw,5.5rem)] leading-[0.95] text-ink">
+            The model deprecation
             <br />
-            <span className="em">Before</span> it takes you down.
+            tracker that opens the PR.
           </h1>
           <p className="mt-8 max-w-xl leading-relaxed text-ink-secondary">
-            Every OpenAI, Anthropic and Google model and API retirement, dated and sourced. aidep
-            finds the ones your code still calls, opens the migration PR, and proves behavior held
-            in your own CI.
+            Every OpenAI, Anthropic and Google model and API retirement, dated and sourced. Run it
+            on a repo and get every identifier you still call, with the day it stops working.
           </p>
 
-          <div className="mt-9 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
-            <div className="panel flex items-stretch font-mono text-sm">
-              <code className="flex items-center gap-3 px-4 py-2.5 text-ink">
-                <span className="text-ink-muted">$</span>
-                <span>npx aidep .</span>
-              </code>
-              <span className="label flex items-center border-l border-rule px-3 text-ink-muted">
-                no account
-              </span>
+          {/* One control. Install is in the header and at the end, once the
+           * reader has seen what the PR is. */}
+          <div className="panel mt-9 inline-flex items-stretch font-mono text-sm">
+            <code className="flex items-center gap-3 px-4 py-2.5 text-ink">
+              <span className="text-ink-muted">$</span>
+              <span>npx aidep .</span>
+            </code>
+            <span className="label flex items-center border-l border-rule px-3 text-ink-muted">
+              no account
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* ---- the calendar: the product on the page, so it sits under the headline ---- */}
+      <section className="border-t border-rule">
+        <div className="mx-auto max-w-6xl px-6 py-20">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <Kicker>the calendar</Kicker>
+              <h2 className="mt-4 text-3xl sm:text-4xl">What dies next</h2>
             </div>
-            <a
-              href={installUrl}
-              className="label border border-ink bg-ink px-4 py-3 text-paper hover:bg-transparent hover:text-ink"
-            >
-              install on github →
-            </a>
+            <p className="label text-ink-muted">dates as published by each provider</p>
           </div>
 
-          <p className="label mt-6 text-ink-muted">
-            three permissions · findings only, never source ·{" "}
-            <Link href="/security" className="text-ink-secondary underline underline-offset-4 hover:text-ink">
-              security
-            </Link>
-          </p>
-        </div>
-      </section>
-
-      {/* ---- stat band ---- */}
-      <section className="border-y border-rule">
-        <div className="mx-auto grid max-w-6xl grid-cols-2 divide-rule md:grid-cols-4 md:divide-x">
-          <Stat n="308,224" label="files still call a model that died in 2025" />
-          <Stat n={String(rows.length)} label="deprecations on file, each with its vendor source" />
-          <Stat n={String(futureRows)} label="retirements still ahead" />
-          <Stat
-            n={next ? daysLabel(daysUntil(next.lead.dies, now)) : "none"}
-            label={next ? `until ${shortId(next.lead)} is gone` : "no dated retirements"}
-          />
-        </div>
-      </section>
-
-      {/* ---- the calendar ---- */}
-      <section className="mx-auto max-w-6xl px-6 py-20">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <Kicker>the calendar</Kicker>
-            <h2 className="mt-4 text-3xl sm:text-4xl">What dies next</h2>
-          </div>
-          <p className="label text-ink-muted">dates as published by each provider</p>
-        </div>
-
-        <div className="panel mt-8 overflow-x-auto">
-          <table className="w-full min-w-[680px] table-fixed border-collapse text-sm">
-            <colgroup>
-              <col className="w-[38%]" />
-              <col className="w-[14%]" />
-              <col className="w-[24%]" />
-              <col />
-            </colgroup>
-            <thead>
-              <tr className="label border-b border-rule text-left text-ink-muted">
-                <th className="px-4 py-2.5 font-normal">identifier</th>
-                <th className="px-4 py-2.5 font-normal">provider</th>
-                <th className="px-4 py-2.5 font-normal">dies</th>
-                <th className="px-4 py-2.5 font-normal">replacement</th>
-              </tr>
-            </thead>
-            <tbody className="font-mono text-[13px]">
-              {upcoming.map(({ lead, alsoDying }) => (
-                <tr key={lead.id} className="border-b border-rule last:border-b-0">
-                  <td className="px-4 py-3 text-ink">
-                    {shortId(lead)}
-                    {alsoDying > 0 && (
-                      <span className="label ml-2 text-ink-muted">+{alsoDying} that day</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-ink-secondary">{PROVIDER[lead.provider]}</td>
-                  <td className="whitespace-nowrap px-4 py-3 tabular-nums text-ink">
-                    {formatDies(lead.dies)}
-                    <DaysChip days={daysUntil(lead.dies, now)} />
-                  </td>
-                  <td className="px-4 py-3 text-ink-secondary">
-                    {lead.replacement_id ?? lead.replacement_notes ?? "none announced"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="mt-10">
-          <Kicker>already dead</Kicker>
-          <div className="panel mt-4 overflow-x-auto">
-            <table className="w-full min-w-[680px] table-fixed border-collapse font-mono text-[13px]">
+          <div className="panel mt-8 overflow-x-auto">
+            <table className="w-full min-w-[680px] table-fixed border-collapse text-sm">
               <colgroup>
                 <col className="w-[38%]" />
                 <col className="w-[14%]" />
                 <col className="w-[24%]" />
                 <col />
               </colgroup>
-              <tbody>
-                {dead.map((r) => (
-                  <tr key={r.id} className="border-b border-rule last:border-b-0">
-                    <td className="struck px-4 py-3">{shortId(r)}</td>
-                    <td className="px-4 py-3 text-ink-muted">{PROVIDER[r.provider]}</td>
-                    <td className="whitespace-nowrap px-4 py-3 tabular-nums text-ink-muted">
-                      {r.dies ? formatDies(r.dies) : "retired"}
-                      <span className="label ml-2 inline-block whitespace-nowrap bg-dead-bg px-1.5 py-0.5 text-dead">
-                        calls fail
-                      </span>
+              <thead>
+                <tr className="label border-b border-rule text-left text-ink-muted">
+                  <th className="px-4 py-2.5 font-normal">identifier</th>
+                  <th className="px-4 py-2.5 font-normal">provider</th>
+                  <th className="px-4 py-2.5 font-normal">dies</th>
+                  <th className="px-4 py-2.5 font-normal">replacement</th>
+                </tr>
+              </thead>
+              <tbody className="font-mono text-[13px]">
+                {upcoming.map(({ lead, alsoDying }) => (
+                  <tr key={lead.id} className="border-b border-rule last:border-b-0">
+                    <td className="px-4 py-3 text-ink">
+                      {shortId(lead)}
+                      {alsoDying > 0 && (
+                        <span className="label ml-2 text-ink-muted">+{alsoDying} that day</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-ink-secondary">{PROVIDER[lead.provider]}</td>
+                    <td className="whitespace-nowrap px-4 py-3 tabular-nums text-ink">
+                      {formatDies(lead.dies)}
+                      <DaysChip days={daysUntil(lead.dies, now)} />
                     </td>
                     <td className="px-4 py-3 text-ink-secondary">
-                      {r.replacement_id ?? r.replacement_notes ?? "none announced"}
+                      {lead.replacement_id ?? lead.replacement_notes ?? "none announced"}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <p className="label mt-3 text-ink-muted">
-            <Link href="/dead" className="text-ink-secondary underline underline-offset-4 hover:text-ink">
-              the full list, with a github search you can run yourself →
-            </Link>
-          </p>
+
+          <div className="mt-10">
+            <Kicker>already dead</Kicker>
+            <div className="panel mt-4 overflow-x-auto">
+              <table className="w-full min-w-[680px] table-fixed border-collapse font-mono text-[13px]">
+                <colgroup>
+                  <col className="w-[38%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[24%]" />
+                  <col />
+                </colgroup>
+                <tbody>
+                  {dead.map((r) => (
+                    <tr key={r.id} className="border-b border-rule last:border-b-0">
+                      <td className="struck px-4 py-3">{shortId(r)}</td>
+                      <td className="px-4 py-3 text-ink-muted">{PROVIDER[r.provider]}</td>
+                      <td className="whitespace-nowrap px-4 py-3 tabular-nums text-ink-muted">
+                        {r.dies ? formatDies(r.dies) : "retired"}
+                        <span className="label ml-2 inline-block whitespace-nowrap bg-dead-bg px-1.5 py-0.5 text-dead">
+                          calls fail
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-ink-secondary">
+                        {r.replacement_id ?? r.replacement_notes ?? "none announced"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="label mt-3 text-ink-muted">
+              <Link href="/dead" className="text-ink-secondary underline underline-offset-4 hover:text-ink">
+                the full list, with a github search you can run yourself →
+              </Link>
+            </p>
+          </div>
         </div>
       </section>
 
-      {/* ---- how it works: herdr's numbered rows ---- */}
+      {/* ---- after install ---- */}
       <section className="border-t border-rule">
         <div className="mx-auto max-w-6xl px-6 py-20">
-          <Kicker>in three moves</Kicker>
-          <h2 className="mt-4 text-3xl sm:text-4xl">How it works</h2>
+          <Kicker>after install</Kicker>
+          <h2 className="mt-4 text-3xl sm:text-4xl">One PR per retirement date</h2>
 
           <ol className="mt-10 divide-y divide-rule border-y border-rule">
             <Step
@@ -290,9 +259,14 @@ drifted  extract_line_items`}
         <div className="mx-auto grid max-w-6xl gap-10 px-6 py-20 md:grid-cols-[1fr_1.2fr]">
           <div>
             <Kicker>the obvious question</Kicker>
-            <h2 className="mt-4 text-3xl leading-tight sm:text-4xl">
-              Why not just ask <span className="em">my</span> agent?
-            </h2>
+            <h2 className="mt-4 text-3xl leading-tight sm:text-4xl">Why not just ask my agent?</h2>
+            {/* The page's one display figure. Computed above, never typed. */}
+            <p className="figure mt-10 text-4xl leading-none text-ink sm:text-5xl">
+              {rottedReplacements} / {withReplacement.length}
+            </p>
+            <p className="label mt-3 max-w-xs leading-relaxed text-ink-muted">
+              vendor-named replacements that are themselves already deprecated
+            </p>
           </div>
           <div className="space-y-5 leading-relaxed text-ink-secondary">
             <p>
@@ -319,19 +293,51 @@ drifted  extract_line_items`}
         </div>
       </section>
 
-      {/* ---- closing: insforge's centered band with the numbers underneath ---- */}
+      {/* ---- what it can touch: an app asking for contents:write has to say this at body size ---- */}
+      <section className="border-t border-rule">
+        <div className="mx-auto grid max-w-6xl gap-10 px-6 py-20 md:grid-cols-[1fr_1.2fr]">
+          <div>
+            <Kicker>what it can touch</Kicker>
+            <h2 className="mt-4 text-3xl leading-tight sm:text-4xl">
+              Three permissions, and findings only
+            </h2>
+          </div>
+          <div className="space-y-5 leading-relaxed text-ink-secondary">
+            <p>
+              Metadata read, contents read and write, pull requests read and write. That is the
+              whole list, so aidep can never write <code className="font-mono text-[0.9em] text-ink">.github/workflows</code>;
+              the eval workflow ships as a file you move yourself.
+            </p>
+            <p>
+              Your tarball is fetched, scanned in memory and discarded. What persists is a path, a
+              line, and the identifier matched there. Never source.
+            </p>
+            <p>
+              No customer model key, ever. Eval runs happen in your CI with your keys. The one
+              egress is our own Anthropic key, used to draft eval cases, and only when your repo
+              opts in.
+            </p>
+            <p className="label text-ink-muted">
+              <Link href="/security" className="text-ink-secondary underline underline-offset-4 hover:text-ink">
+                the security page, in full →
+              </Link>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ---- closing ---- */}
       <section id="waitlist" className="border-t border-rule">
         <div className="mx-auto max-w-6xl px-6 py-24 text-center">
           <h2 className="mx-auto max-w-3xl text-[clamp(2.25rem,6vw,4rem)] leading-[0.98]">
-            Give the deadline somewhere to <span className="em">land</span>.
+            Install once. Hear from us when a date gets close.
           </h2>
           <p className="mx-auto mt-6 max-w-xl leading-relaxed text-ink-secondary">
-            Install once and the register watches your repos. Or leave an email and we will write
+            The register watches your repos and opens the PR. Or leave an email and we will write
             when the next shutdown date gets close, and nothing else.
           </p>
 
           <div className="mx-auto mt-10 flex max-w-md flex-col items-center gap-4">
-            <Mark variant="clean" className="mark text-[2.5rem] text-ink" />
             <a
               href={installUrl}
               className="label w-full border border-ink bg-ink px-6 py-4 text-paper hover:bg-transparent hover:text-ink"
@@ -344,53 +350,15 @@ drifted  extract_line_items`}
             </div>
           </div>
 
-          {/* Reach, not trivia. Each figure is a sum over public code-search
-           * counts or a row count in our own tables, so the band gets truer as
-           * the product is used. The registry facts live in the hero band. */}
-          <div className="mt-20 grid grid-cols-2 gap-4 text-left md:grid-cols-4">
-            <Card
-              n={impact.exposedFiles.toLocaleString("en-US")}
-              label="public files exposed"
-              sub={`across ${impact.queriesCounted} identifiers, counted`}
-            />
-            <Card
-              n={String(datesThisYear)}
-              label="retirement dates this year"
-              sub="6 in 2024, 14 in 2025"
-            />
-            <Card
-              n={impact.reposWatched.toLocaleString("en-US")}
-              label="repos under watch"
-              sub="onboarded, scanning daily"
-            />
-            <Card
-              n={`${rottedReplacements} / ${withReplacement.length}`}
-              label="replacements already dying"
-              sub="what an agent would pick"
-            />
-          </div>
+          <p className="label mt-12 text-ink-muted">
+            free on every repo, migration prs included · $39 an org a month adds the eval run ·{" "}
+            <Link href="/pricing" className="text-ink-secondary underline underline-offset-4 hover:text-ink">
+              pricing
+            </Link>
+          </p>
         </div>
       </section>
     </>
-  );
-}
-
-function Card({ n, label, sub }: { n: string; label: string; sub: string }) {
-  return (
-    <div className="panel px-5 py-6 text-center">
-      <p className="label text-ink-muted">{label}</p>
-      <p className="figure mt-3 text-4xl leading-none text-ink sm:text-5xl">{n}</p>
-      <p className="label mt-3 text-ink-muted">{sub}</p>
-    </div>
-  );
-}
-
-function Stat({ n, label }: { n: string; label: string }) {
-  return (
-    <div className="border-b border-rule px-6 py-7 md:border-b-0">
-      <p className="figure text-4xl leading-none text-ink sm:text-5xl">{n}</p>
-      <p className="label mt-3 text-ink-muted">{label}</p>
-    </div>
   );
 }
 

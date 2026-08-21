@@ -5,7 +5,7 @@ import { ImageResponse } from "next/og";
  * are the dark theme tokens from DESIGN.md, written as hex because satori
  * does not read oklch.
  */
-export const alt = "aidep: know what dies, before it takes you down";
+export const alt = "aidep: the model deprecation tracker that opens the PR";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -13,7 +13,7 @@ const PAPER = "#1b1a17";
 const INK = "#efede8";
 const MUTED = "#8a867d";
 
-const HEADLINE = "Know what dies. Before it takes you down.";
+const HEADLINE = "The model deprecation tracker that opens the PR.";
 
 /** The display face the site uses, fetched per the next/og docs pattern. On
  * any failure satori's default sans renders the card instead of the build
