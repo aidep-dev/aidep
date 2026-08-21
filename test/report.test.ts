@@ -42,7 +42,7 @@ describe("renderMarkdownReport", async () => {
   });
 
   it("includes the scanned/skipped footer", () => {
-    expect(report).toContain("Files scanned: 9, skipped: 1");
+    expect(report).toContain("Files scanned: 8, skipped: 2");
   });
 
   it("matches snapshot", () => {

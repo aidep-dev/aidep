@@ -142,11 +142,14 @@ export function buildPatterns(rows: RegistryRow[]): Matcher[] {
       // would wrongly reject "api.openai.com/v1/assistants"
       const left = /^[A-Za-z0-9._-]/.test(id) ? ID_BOUNDARY_LEFT : "";
       const right = /[A-Za-z0-9._-]$/.test(id) ? ID_BOUNDARY_RIGHT : "";
-      // a non-distinctive id only counts inside quotes, where it is being used
-      // as a model string rather than appearing as an English word
+      // a non-distinctive id only counts inside matched quotes, where it is
+      // being used as a model string rather than appearing as an English
+      // word. Backticks are excluded: in a doc comment `ada` is prose about
+      // the id, and a template literal holding only a bare legacy name is
+      // rare enough to give up.
       const body = isDistinctiveId(id)
         ? left + escapeRegExp(id) + right
-        : `['"\`]${escapeRegExp(id)}['"\`]`;
+        : `(['"])${escapeRegExp(id)}\\1`;
       matchers.push({
         row,
         kind: "line",

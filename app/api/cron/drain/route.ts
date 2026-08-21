@@ -1,4 +1,5 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash } from "node:crypto";
+import { bearerMatches } from "../../../../src/auth/access.ts";
 import { sql } from "../../../../src/db/index.ts";
 import { drain, MAX_ATTEMPTS } from "../../../../src/jobs.ts";
 import { runJob } from "../../../../src/pipeline.ts";
@@ -35,13 +36,6 @@ async function rescanOnRegistryChange(): Promise<number> {
     insert into meta (key, value) values ('registry_hash', ${hash})
     on conflict (key) do update set value = ${hash}`;
   return enqueued.length;
-}
-
-/** Constant-time bearer-token check that never throws on a length mismatch. */
-function bearerMatches(header: string | null, secret: string): boolean {
-  const expected = Buffer.from(`Bearer ${secret}`);
-  const got = Buffer.from(header ?? "");
-  return got.length === expected.length && timingSafeEqual(got, expected);
 }
 
 /**

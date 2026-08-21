@@ -19,6 +19,23 @@ export const MINI_REGISTRY: RegistryRow[] = [
     platform: "first-party",
   },
   {
+    // a dictionary-word id: only counts inside matched quotes
+    id: "openai:model:ada",
+    provider: "openai",
+    surface: "model",
+    api_ids: ["ada"],
+    status: "retired",
+    announced: "2023-07-06",
+    dies: "2024-01-04",
+    dies_is_earliest_possible: false,
+    replacement_id: "babbage-002",
+    replacement_notes: null,
+    migration_url: null,
+    source_url: "https://developers.openai.com/api/docs/deprecations",
+    verified_at: "2026-08-01",
+    platform: "first-party",
+  },
+  {
     id: "openai:model:gpt-4-turbo",
     provider: "openai",
     surface: "model",

@@ -1,7 +1,15 @@
+import { timingSafeEqual } from "node:crypto";
 import { getRepo, type RepoRow } from "../db/index.ts";
 import { SESSION_COOKIE, getUserInstallationIds, openSession, type Session } from "./session.ts";
 
 export const STATE_COOKIE = "aidep_oauth_state";
+
+/** Constant-time bearer-token check that never throws on a length mismatch. */
+export function bearerMatches(header: string | null, secret: string): boolean {
+  const expected = Buffer.from(`Bearer ${secret}`);
+  const got = Buffer.from(header ?? "");
+  return got.length === expected.length && timingSafeEqual(got, expected);
+}
 
 /** Serialize a Set-Cookie value with the attributes every aidep cookie uses. */
 export function cookieHeader(name: string, value: string, maxAgeSeconds: number): string {

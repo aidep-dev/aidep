@@ -190,7 +190,7 @@ it("install → onboarding PR → merge → push rescan, end to end", async () =
   expect(findings1.length).toBeGreaterThan(0);
   expect(scans1[0]).toMatchObject({
     status: "done",
-    stats: { filesScanned: 9, filesSkipped: 1, findings: findings1.length },
+    stats: { filesScanned: 8, filesSkipped: 2, findings: findings1.length },
   });
   expect([...new Set(findings1.map((f) => f.registry_id))].sort()).toEqual(EXPECTED_IDS);
   expect(findings1.every((f) => f.status === "open")).toBe(true);

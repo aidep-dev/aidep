@@ -16,12 +16,18 @@ const LOCKFILE_BASENAMES = new Set([
 
 const SKIP_SEGMENTS = new Set(["node_modules", "vendor", ".git", "dist", "build", ".next"]);
 
+// Prose never makes an API call. Found 2026-08-21 on our own repo: ROADMAP.md
+// and the handbook discuss `ada` and `curie` by name and every mention was
+// reported as "calls fail today".
+const PROSE_EXTENSIONS = /\.(md|mdx|markdown|rst|txt)$/i;
+
 const MAX_BYTES = 1024 * 1024;
 
 function shouldSkip(file: ScanFile): boolean {
   const segments = file.path.split("/");
   if (LOCKFILE_BASENAMES.has(segments[segments.length - 1])) return true;
   if (segments.some((s) => SKIP_SEGMENTS.has(s))) return true;
+  if (PROSE_EXTENSIONS.test(file.path)) return true;
   if (Buffer.byteLength(file.text, "utf8") > MAX_BYTES) return true;
   if (file.text.slice(0, 8192).includes("\u0000")) return true;
   return false;

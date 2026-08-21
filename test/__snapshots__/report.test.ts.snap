@@ -80,6 +80,6 @@ deprecated; no shutdown date announced yet
 | --- | --- | --- |
 | src/opus_params.py | 10 | temperature |
 
-Files scanned: 9, skipped: 1
+Files scanned: 8, skipped: 2
 "
 `;

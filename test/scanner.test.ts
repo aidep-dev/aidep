@@ -58,8 +58,8 @@ describe("fixture-repo", async () => {
   });
 
   it("counts scanned and skipped files", () => {
-    expect(result.filesScanned).toBe(9);
-    expect(result.filesSkipped).toBe(1);
+    expect(result.filesScanned).toBe(8);
+    expect(result.filesSkipped).toBe(2); // package-lock.json, docs/notes.md
   });
 
   it("produces nothing for docs/notes.md and package-lock.json", () => {
@@ -191,6 +191,24 @@ describe("real-world regression: precision", () => {
   // anymodel: short/dictionary model ids as bare words
   clean("dictionary-word model id in prose", "# the davinci era is over");
   clean("two-character model id as a variable", "const o1 = compute();");
+  // our own repo, 2026-08-21: every `ada` in a doc comment was reported as a
+  // failing call, and the same id mismatched across quote styles
+  clean("dictionary-word id in backticks", "/** legacy ids like `ada` and `davinci` are English */");
+  clean("dictionary-word id across mismatched quotes", `const s = "ada' + 'x";`);
+
+  it("fires on a dictionary-word id only inside matched quotes", () => {
+    for (const text of ['model: "ada"', "model = 'ada'"]) {
+      const found = scanFiles([{ path: "f.py", text }], MINI_REGISTRY).findings;
+      expect(found.map((f) => f.matched), text).toEqual(["ada"]);
+    }
+  });
+
+  it("never scans prose files", () => {
+    for (const path of ["ROADMAP.md", "docs/guide.mdx", "notes.rst", "CHANGES.txt"]) {
+      const text = '`ada` points at `babbage-002`. Set model: "gpt-4-turbo" to reproduce.';
+      expect(scanFiles([{ path, text }], MINI_REGISTRY).findings, path).toEqual([]);
+    }
+  });
 
   it("still fires on helpers when the file has real OpenAI context", () => {
     const text = 'import OpenAI from "openai";\nconst r = await run.createAndPoll(id);\n';
