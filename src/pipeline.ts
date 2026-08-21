@@ -451,6 +451,8 @@ async function buildMigrationForEvent(
     evalNote: note,
     judgeProvider: judge,
     now: new Date().toISOString().slice(0, 10),
+    sites: findings.map((f) => ({ path: f.path, line: f.line })),
+    rows,
   });
   return { event, built, shippedEvalPack: pack !== null };
 }

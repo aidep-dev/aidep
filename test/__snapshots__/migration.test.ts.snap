@@ -19,6 +19,16 @@ Judge: anthropic:messages:claude-sonnet-4-6 (a different model family than the o
 | src/assistant.js | inlined the assistants.create config (model/instructions/tools) into responses.create in src/assistant.js | 2026-08-26 |
 | src/assistant.js | removed the dead createReviewAssistant() helper in src/assistant.js | 2026-08-26 |
 
+## Agent brief
+
+For whatever agent you already use. It knows how to rewrite code; this is what it cannot know.
+
+- retiring: \`/v1/assistants\` (openai), dies 2026-08-26
+- replacement: \`responses-api\`, checked against the vendor page 2026-08-01
+- trap: do not migrate onto OpenAI hosted prompt objects; /v1/prompts retires 2026-11-30. Inline the config.
+- sites: src/assistant.js:1, src/assistant_flow.py:1
+- registry: https://aidep.example/api/registry (source: https://platform.openai.com/docs/deprecations)
+
 ## Manual checklist
 
 - [ ] createReviewAssistant() in src/assistant.js was removed; its Assistant config is now inlined in the responses.create call, update any callers.
@@ -29,5 +39,5 @@ Migration guide: https://platform.openai.com/docs/assistants/migration
 Provider announcement: https://platform.openai.com/docs/deprecations
 
 - [ ] <!-- aidep-rerun -->Check this box to have aidep re-run the migration on the current default branch.
-<!-- aidep:body-hash:a17ac35df556ab3e1b629b997df196ffd5acdab3c2acef250ad32467a6ac1fc1 -->"
+<!-- aidep:body-hash:8d0a820e2055c289baf2925df4a296cdf7d461a276f0f63b7c6aa6c6b7dcba24 -->"
 `;

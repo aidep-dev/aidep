@@ -31,6 +31,12 @@ export interface MigrationPrInput {
   judgeProvider?: string | null;
   /** YYYY-MM-DD (same contract as the onboarding builder) */
   now: string;
+  /** every finding for the event, workflow files included: the brief is for
+   * an agent that can edit what aidep will not */
+  sites?: Array<{ path: string; line: number }>;
+  /** the whole registry, so the brief can say when the named replacement is
+   * itself on the way out */
+  rows?: RegistryRow[];
 }
 
 export interface BuiltMigrationPr {
@@ -155,6 +161,72 @@ function summaryFor(event: RegistryRow, result: EventTransformResult): string {
   return `This PR replaces ${old}${dies} with ${next} in ${files}.`;
 }
 
+const BRIEF_SITES = 30;
+
+/**
+ * The agent brief: the handbook promises one alongside every migration PR.
+ * An agent is good at the rewrite; what it cannot know is the date, the
+ * replacement as verified today, and whether that replacement is itself
+ * dying. Nothing here is a hosted prompt reference and nothing here guesses.
+ */
+function agentBrief(input: MigrationPrInput): string[] {
+  const { event } = input;
+  const rows = input.rows ?? [];
+  const appUrl = process.env.APP_URL ?? "https://aidep.example";
+  const old = event.api_ids[0];
+
+  let when: string;
+  if (event.status === "retired") when = event.dies === null ? "retired" : `retired ${event.dies}`;
+  else if (event.dies === null) when = "no shutdown date announced";
+  else when = `dies ${event.dies}${event.dies_is_earliest_possible ? " (earliest possible date)" : ""}`;
+
+  const out = [
+    "## Agent brief",
+    "",
+    "For whatever agent you already use. It knows how to rewrite code; this is what it cannot know.",
+    "",
+    `- retiring: \`${old}\` (${event.provider}), ${when}`,
+  ];
+
+  if (event.replacement_id === null) {
+    out.push(
+      `- replacement: none announced${event.replacement_notes === null ? "" : `; ${event.replacement_notes}`}`,
+    );
+  } else {
+    const next = modelSlug(event.replacement_id);
+    out.push(`- replacement: \`${next}\`, checked against the vendor page ${event.verified_at}`);
+    const rot = rows.find(
+      (r) =>
+        r.surface === "model" &&
+        (r.status === "deprecated" || r.status === "retired") &&
+        r.api_ids.includes(next),
+    );
+    if (rot !== undefined) {
+      out.push(
+        `- trap: \`${next}\` is itself ${rot.status}${rot.dies === null ? "" : `, ${rot.status === "retired" ? "since" : "dies"} ${rot.dies}`}; pick its replacement${rot.replacement_id === null ? "" : ` (\`${modelSlug(rot.replacement_id)}\`)`} instead`,
+      );
+    }
+  }
+
+  if (event.provider === "openai") {
+    out.push(
+      "- trap: do not migrate onto OpenAI hosted prompt objects; /v1/prompts retires 2026-11-30. Inline the config.",
+    );
+  }
+
+  const sites = [...new Map((input.sites ?? []).map((s) => [`${s.path}:${s.line}`, s])).values()].sort(
+    (a, b) => (a.path === b.path ? a.line - b.line : a.path < b.path ? -1 : 1),
+  );
+  if (sites.length > 0) {
+    const shown = sites.slice(0, BRIEF_SITES).map((s) => `${mdEscape(s.path)}:${s.line}`);
+    const more = sites.length - shown.length;
+    out.push(`- sites: ${shown.join(", ")}${more > 0 ? `, +${more} more` : ""}`);
+  }
+
+  out.push(`- registry: ${appUrl}/api/registry (source: ${event.source_url})`, "");
+  return out;
+}
+
 export function buildMigrationPr(input: MigrationPrInput): BuiltMigrationPr {
   const { event, result, evalPack, evalSkipReason } = input;
 
@@ -203,6 +275,9 @@ export function buildMigrationPr(input: MigrationPrInput): BuiltMigrationPr {
   } else {
     out.push("| file | change | dies |", "| --- | --- | --- |", ...rows, "");
   }
+
+  // (3b) the agent brief, between what we changed and what we will not
+  out.push(...agentBrief(input));
 
   // (4) deduped manual checklist (transforms own the escaping of their items)
   const seen = new Set<string>();

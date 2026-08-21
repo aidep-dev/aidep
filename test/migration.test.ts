@@ -571,6 +571,60 @@ describe("buildMigrationPr", () => {
     expect(built.body).not.toContain("## Eval");
   });
 
+  it("writes the agent brief: dates, the replacement as verified, every site, the registry", () => {
+    const built = buildMigrationPr({
+      repo,
+      event: claudeEvent,
+      result: swapResult,
+      evalPack: null,
+      evalSkipReason: null,
+      now: "2026-08-16",
+      sites: [
+        { path: "src/[evil]|path.py", line: 8 },
+        { path: "src/[evil]|path.py", line: 8 },
+        { path: ".github/workflows/nightly.yml", line: 3 },
+      ],
+      rows: MINI_REGISTRY,
+    });
+    const brief = built.body.indexOf("## Agent brief");
+    expect(brief).toBeGreaterThan(built.body.indexOf("## Changes"));
+    expect(brief).toBeLessThan(built.body.indexOf("Provider announcement: "));
+    expect(built.body).toContain("- retiring: `claude-3-5-sonnet-20241022` (anthropic), retired 2025-10-28");
+    expect(built.body).toContain("- replacement: `claude-sonnet-4-6`, checked against the vendor page 2026-08-01");
+    // deduped, sorted, escaped; the workflow file is listed because the agent can edit it
+    expect(built.body).toContain("- sites: .github/workflows/nightly.yml:3, src/\\[evil\\]\\|path.py:8");
+    expect(built.body).toContain("/api/registry (source: https://");
+    // anthropic event: no OpenAI prompt-object trap
+    expect(built.body).not.toContain("hosted prompt objects");
+  });
+
+  it("flags a replacement the registry already knows is dying, and the OpenAI prompt-object trap", () => {
+    const adaEvent = MINI_REGISTRY.find((r) => r.id === "openai:model:ada")!;
+    const babbage002 = {
+      ...adaEvent,
+      id: "openai:model:babbage-002",
+      api_ids: ["babbage-002"],
+      status: "deprecated" as const,
+      dies: "2026-09-28",
+      replacement_id: "gpt-4o-mini",
+    };
+    const built = buildMigrationPr({
+      repo,
+      event: adaEvent,
+      result: { files: [], eventChecklist: [], generatedFiles: [] },
+      evalPack: null,
+      evalSkipReason: null,
+      now: "2026-08-16",
+      sites: [{ path: "src/legacy.py", line: 4 }],
+      rows: [...MINI_REGISTRY, babbage002],
+    });
+    expect(built.body).toContain(
+      "- trap: `babbage-002` is itself deprecated, dies 2026-09-28; pick its replacement (`gpt-4o-mini`) instead",
+    );
+    expect(built.body).toContain("/v1/prompts retires 2026-11-30");
+    expect(built.body).not.toContain("prompt_id");
+  });
+
   it("uses the fixed param-event title and dedupes checklist items", () => {
     const result: EventTransformResult = {
       files: [
