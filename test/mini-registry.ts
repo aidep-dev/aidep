@@ -36,6 +36,23 @@ export const MINI_REGISTRY: RegistryRow[] = [
     platform: "first-party",
   },
   {
+    // ada's named replacement, itself dying: the two-hop chain the lookup walks
+    id: "openai:model:babbage-002",
+    provider: "openai",
+    surface: "model",
+    api_ids: ["babbage-002"],
+    status: "deprecated",
+    announced: "2026-03-28",
+    dies: "2026-09-28",
+    dies_is_earliest_possible: false,
+    replacement_id: "gpt-4o-mini",
+    replacement_notes: null,
+    migration_url: null,
+    source_url: "https://developers.openai.com/api/docs/deprecations",
+    verified_at: "2026-08-01",
+    platform: "first-party",
+  },
+  {
     id: "openai:model:gpt-4-turbo",
     provider: "openai",
     surface: "model",

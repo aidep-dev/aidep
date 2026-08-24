@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { listExposure } from "../../../src/exposure.ts";
 import { loadRegistry } from "../../../src/registry.ts";
-import { daysLabel, daysUntil, formatDies } from "../dates.ts";
+import { chipClass, daysUntil, statusLabel } from "../dates.ts";
 
 export const metadata: Metadata = {
   title: "What is already dead · aidep",
@@ -12,24 +12,6 @@ export const metadata: Metadata = {
 
 // Counts come from a daily snapshot, never from code search at request time.
 export const revalidate = 3600;
-
-function chipClass(days: number | null, retired: boolean): string {
-  if (retired) return "bg-dead-bg text-dead";
-  if (days !== null && days <= 90) return "bg-dying-bg text-dying";
-  return "text-ink-muted";
-}
-
-/**
- * Status text. A passed date is not the same as a dead model: Google publishes
- * "earliest possible" shutdown dates, so a row whose date has gone by may
- * still answer. Only the provider marking it retired means the calls fail.
- */
-function statusLabel(row: { status: string; dies: string | null; dies_is_earliest_possible: boolean }, days: number | null): string {
-  if (row.status === "retired") return row.dies ? `retired ${formatDies(row.dies)}` : "retired";
-  if (days === null) return "no date announced";
-  if (days <= 0) return row.dies_is_earliest_possible ? "past earliest date" : "calls fail today";
-  return daysLabel(days);
-}
 
 export default async function DeadPage() {
   const [rows, counts] = await Promise.all([loadRegistry(), listExposure(40)]);

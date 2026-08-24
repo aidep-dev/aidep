@@ -13,6 +13,27 @@ export function daysLabel(days: number): string {
   return `${days} days`;
 }
 
+export function chipClass(days: number | null, retired: boolean): string {
+  if (retired) return "bg-dead-bg text-dead";
+  if (days !== null && days <= 90) return "bg-dying-bg text-dying";
+  return "text-ink-muted";
+}
+
+/**
+ * Status text. A passed date is not the same as a dead model: Google publishes
+ * "earliest possible" shutdown dates, so a row whose date has gone by may
+ * still answer. Only the provider marking it retired means the calls fail.
+ */
+export function statusLabel(
+  row: { status: string; dies: string | null; dies_is_earliest_possible: boolean },
+  days: number | null,
+): string {
+  if (row.status === "retired") return row.dies ? `retired ${formatDies(row.dies)}` : "retired";
+  if (days === null) return "no date announced";
+  if (days <= 0) return row.dies_is_earliest_possible ? "past earliest date" : "calls fail today";
+  return daysLabel(days);
+}
+
 /** "2026-08-26" -> "Aug 26, 2026", locale-pinned so server output is stable. */
 export function formatDies(dies: string): string {
   const [y, m, d] = dies.split("-").map(Number);

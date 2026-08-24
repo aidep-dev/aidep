@@ -1,7 +1,7 @@
 # Roadmap
 
 Public because it should be. If you want to know what we're doing and why, this is it.
-Last updated 2026-08-20.
+Last updated 2026-08-21.
 
 ## The goal
 
@@ -19,15 +19,18 @@ can keep the rest free forever without it being a favour anyone can withdraw.
 
 ## Where we are, stated plainly
 
-Zero customers. Not deployed. No GitHub App, no host, no billing. `aidep.dev` is registered and
-points at nothing. Nothing has ever run outside one laptop.
+Zero customers. One install, and it is ours. No billing: the paid flag is a column nobody can flip
+from outside.
 
-What does exist: 199 dated and sourced deprecation rows across OpenAI, Anthropic and Google; a
-scanner; transforms; migration PR generation; an eval pack; 190 passing tests; and a scan page
-with no URL.
+What does exist, as of 2026-08-21: `aidep.dev` is live on Vercel with Postgres on Neon. The
+GitHub App `aidep-dev` is registered under the organization with exactly three permissions, and
+its first install opened the onboarding PR on this repo. The registry is public, CC0, and served
+at `/api/registry` for anyone's agent. `npx aidep .` scans a directory with no account. 199 dated
+and sourced deprecation rows across OpenAI, Anthropic and Google; a scanner; transforms; migration
+PR generation; an eval pack; 220 passing tests.
 
-Two hand-written issues in August moved two strangers' repos within 48 hours. Nobody has installed
-anything and nobody has asked what it costs.
+Two hand-written issues in August moved two strangers' repos within 48 hours. Nobody else has
+installed anything and nobody has asked what it costs.
 
 ## What we give away and what we sell
 
@@ -73,6 +76,8 @@ Yes, use your AI. We tell you when, and we tell it what is actually true today.
 ## Phase 0: give it a URL
 
 **Now to 2026-08-25.** Gate: a stranger can run aidep without asking permission.
+
+Done 2026-08-21. Every item below shipped; the list stays so the reasoning does.
 
 Nothing on this list is a feature. The product is finished and invisible, and that is the entire
 problem.

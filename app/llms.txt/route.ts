@@ -13,8 +13,11 @@ Use the registry to check a model id or endpoint before you recommend it. Traini
 ## Registry
 
 - [All rows as JSON](https://aidep.dev/api/registry): fields id, provider, surface, api_ids, status (legacy | deprecated | retired), announced, dies, dies_is_earliest_possible, replacement_id, replacement_notes, migration_url, source_url, verified_at. CORS open, cached one hour.
+- [Look up one id](https://aidep.dev/api/registry/gpt-4-turbo): GET /api/registry/{api_id}. Returns found, alive, the row, and the replacement chain walked to the end. 404 with a file_a_row link when the id is not tracked. Make this call before recommending a model.
+- [JSON Schema for a row](https://aidep.dev/api/registry/schema.json)
 - [Source repo](https://github.com/aidep-dev/aidep-registry): CC0 data, MIT code, one review PR per provider page change.
 - [Public exposure by identifier](https://aidep.dev/dead): GitHub code-search counts you can reproduce.
+- [Check what your model picked](https://aidep.dev/replacements): every registry replacement that is itself already dying, and a lookup over the same JSON.
 
 ## Rules an agent should respect
 
@@ -26,6 +29,7 @@ Use the registry to check a model id or endpoint before you recommend it. Traini
 
 - [Scan a directory locally](https://www.npmjs.com/package/aidep): npx aidep . needs no account and sends nothing anywhere.
 - [Handbook](https://aidep.dev/handbook): what we promise, who we build for, how we make money.
+- [Roadmap](https://aidep.dev/roadmap): the goal, the phases, and the retirement calendar that sets the dates.
 - [Security](https://aidep.dev/security): three GitHub permissions, findings only, never source.
 - [Pricing](https://aidep.dev/pricing): everything free on every repo; the eval pack is $39 per org per month.
 `;

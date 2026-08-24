@@ -285,6 +285,9 @@ drifted  extract_line_items`}
             </p>
             <p className="label text-ink-muted">
               aidep tells it when, and tells it what is true today.{" "}
+              <Link href="/replacements" className="text-ink-secondary underline underline-offset-4 hover:text-ink">
+                check what yours picked →
+              </Link>{" "}
               <Link href="/handbook" className="text-ink-secondary underline underline-offset-4 hover:text-ink">
                 handbook →
               </Link>

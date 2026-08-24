@@ -7,7 +7,13 @@ const NAV = [
   { href: "/dead", label: "dead" },
   { href: "/security", label: "security" },
 ];
-const FOOTER_NAV = [...NAV, { href: "/handbook", label: "handbook" }, { href: "/pricing", label: "pricing" }];
+const FOOTER_NAV = [
+  ...NAV,
+  { href: "/replacements", label: "replacements" },
+  { href: "/handbook", label: "handbook" },
+  { href: "/roadmap", label: "roadmap" },
+  { href: "/pricing", label: "pricing" },
+];
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   const slug = process.env.NEXT_PUBLIC_GITHUB_APP_SLUG;
