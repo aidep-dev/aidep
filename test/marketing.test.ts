@@ -16,3 +16,15 @@ describe("countdown math", () => {
     expect(daysLabel(10)).toBe("10 days");
   });
 });
+
+describe("landing mocks", () => {
+  it("never hard-code the nearest retirement date", async () => {
+    // 2026-08-25: the Step 01 mock shipped "nearest 2026-08-26 (5 days)" typed
+    // by hand, and went stale on the shutdown day itself. Mock dates must be
+    // derived from the registry like every other number on the page.
+    const { readFile } = await import("node:fs/promises");
+    const source = await readFile(new URL("../app/(marketing)/page.tsx", import.meta.url), "utf8");
+    expect(source).not.toMatch(/nearest 20\d\d-/);
+    expect(source).not.toMatch(/verified {2}20\d\d-/);
+  });
+});

@@ -46,27 +46,6 @@ export function queryFor(row: RegistryRow): string | null {
   return row.api_ids.find((id) => preferred.includes(id)) ?? null;
 }
 
-/**
- * The numbers on the front page's closing band. Every one is either a sum
- * over public GitHub code-search counts or a count of rows in our own tables,
- * so each gets truer as the product is used and none is typed by hand.
- */
-export async function impactFigures(): Promise<{
-  exposedFiles: number;
-  queriesCounted: number;
-  reposWatched: number;
-}> {
-  const [row] = await sql<{ exposed: string; queries: string; repos: string }[]>`
-    select
-      (select coalesce(sum(files), 0) from exposure_counts) as exposed,
-      (select count(*) from exposure_counts) as queries,
-      (select count(*) from repos where onboarded_at is not null) as repos`;
-  return {
-    exposedFiles: Number(row?.exposed ?? 0),
-    queriesCounted: Number(row?.queries ?? 0),
-    reposWatched: Number(row?.repos ?? 0),
-  };
-}
 
 /** Read the stored snapshot, most exposed first. */
 export async function listExposure(limit = 40): Promise<ExposureRow[]> {

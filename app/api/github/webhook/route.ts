@@ -24,9 +24,6 @@ export async function POST(req: Request): Promise<Response> {
   // Verify the signature on its own so a handler that throws can't be reported
   // as a bad signature. A bad signature is 401 (GitHub drops it); a handler
   // failure is 500, which shows red in the delivery log and gets redelivered.
-  // Verify the signature on its own so a handler that throws can't be reported
-  // as a bad signature. A bad signature is 401 (GitHub drops it); a handler
-  // failure is 500, which shows red in the delivery log and gets redelivered.
   let signatureOk = false;
   try {
     signatureOk = await app.webhooks.verify(body, req.headers.get("x-hub-signature-256") ?? "");

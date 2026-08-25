@@ -30,7 +30,14 @@ export default async function DeadPage() {
   const dead = listed.filter((x) => x.row.status === "retired");
   const dying = listed.filter((x) => !dead.includes(x));
   const totalDeadFiles = dead.reduce((n, x) => n + x.count.files, 0);
-  const stamped = counts[0]?.counted_at ? new Date(counts[0].counted_at) : null;
+  // Newest count across the listed rows: the top row's own stamp can be days
+  // older than the freshest, and the page-level claim should not understate.
+  const newest = counts
+    .map((c) => c.counted_at)
+    .filter(Boolean)
+    .sort()
+    .at(-1);
+  const stamped = newest ? new Date(newest) : null;
 
   return (
     <div className="mx-auto max-w-5xl px-6 pb-20 pt-16">
@@ -129,7 +136,13 @@ function Section({
               return (
                 <tr key={row.id} className="border-b border-rule align-baseline">
                   <td className="py-3 pr-4">
-                    <code className="text-ink">{count.query}</code>
+                    {/* the page's whole claim is "run the query yourself"; make it one click */}
+                    <a
+                      href={`https://github.com/search?q=${encodeURIComponent(`"${count.query}"`)}&type=code`}
+                      className="underline decoration-rule underline-offset-2 hover:decoration-ink"
+                    >
+                      <code className="text-ink">{count.query}</code>
+                    </a>
                   </td>
                   <td className="py-3 pr-4 tabular-nums text-ink">
                     {count.files.toLocaleString("en-US")}

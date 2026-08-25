@@ -8,7 +8,7 @@ import { loadRegistry } from "../../../../src/registry.ts";
  */
 export const revalidate = 3600;
 
-const FILE_A_ROW = "https://github.com/aidep-dev/aidep-registry/issues/new";
+const FILE_A_ROW = "https://github.com/aidep-dev/aidep-registry/issues/new?template=file-a-row.yml";
 
 const HEADERS = {
   "cache-control": "public, max-age=3600",

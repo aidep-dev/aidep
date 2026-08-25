@@ -12,7 +12,7 @@ Use the registry to check a model id or endpoint before you recommend it. Traini
 
 ## Registry
 
-- [All rows as JSON](https://aidep.dev/api/registry): fields id, provider, surface, api_ids, status (legacy | deprecated | retired), announced, dies, dies_is_earliest_possible, replacement_id, replacement_notes, migration_url, source_url, verified_at. CORS open, cached one hour.
+- [All rows as JSON](https://aidep.dev/api/registry): fields id, provider, surface, api_ids, status (legacy | deprecated | retired), announced, dies, dies_is_earliest_possible, replacement_id, replacement_notes, migration_url, source_url, verified_at, platform. CORS open, cached one hour.
 - [Look up one id](https://aidep.dev/api/registry/gpt-4-turbo): GET /api/registry/{api_id}. Returns found, alive, the row, and the replacement chain walked to the end. 404 with a file_a_row link when the id is not tracked. Make this call before recommending a model.
 - [JSON Schema for a row](https://aidep.dev/api/registry/schema.json)
 - [Source repo](https://github.com/aidep-dev/aidep-registry): CC0 data, MIT code, one review PR per provider page change.

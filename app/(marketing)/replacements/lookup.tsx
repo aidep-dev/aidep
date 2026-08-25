@@ -5,7 +5,7 @@ import { replacementChain, type Chain } from "../../../src/chain.ts";
 import type { RegistryRow } from "../../../src/registry.ts";
 import { chipClass, daysUntil, statusLabel } from "../dates.ts";
 
-const FILE_A_ROW = "https://github.com/aidep-dev/aidep-registry/issues/new";
+const FILE_A_ROW = "https://github.com/aidep-dev/aidep-registry/issues/new?template=file-a-row.yml";
 
 /**
  * Paste the id your model suggested; walk its replacement chain in the

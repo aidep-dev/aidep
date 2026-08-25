@@ -75,10 +75,15 @@ export default function SecurityPage() {
         <p className="mt-3 max-w-xl leading-relaxed text-ink-secondary">
           We hold an email address only if you typed it: into <code>notify</code> in{" "}
           <code>.github/aidep.json</code>, or the waitlist form. It gets one confirmation mail with
-          a link and nothing else until the link is clicked. After that, a plain-text digest when a
-          scan finds a new exposure or a retirement is inside 30 days, sent through Resend. We never
-          read an address from GitHub; that would be a fourth permission. Remove the address and the
-          mail stops.
+          a link and nothing else until the link is clicked. After that, plain text through Resend:
+          a <code>notify</code> address gets a digest when a scan finds a new exposure or a
+          retirement is inside 30 days; a waitlist address gets one mail per retirement date inside
+          14 days. We never read an address from GitHub; that would be a fourth permission. Every
+          mail carries a one-click stop link, and a stopped address never hears from us again.
+        </p>
+        <p className="mt-3 max-w-xl leading-relaxed text-ink-secondary">
+          The site runs Vercel Web Analytics: cookieless page counts, no cross-site tracking, no
+          advertising identifiers.
         </p>
       </section>
 

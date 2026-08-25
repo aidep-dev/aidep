@@ -44,3 +44,6 @@ next-env.d.ts
 
 # the published CLI, built by `npm run build:cli`
 /cli/dist
+
+# playwright MCP debug artifacts
+.playwright-mcp/

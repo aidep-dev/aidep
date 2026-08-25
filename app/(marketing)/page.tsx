@@ -200,7 +200,7 @@ export default async function LandingPage() {
             </div>
             <p className="label mt-3 text-ink-muted">
               <Link href="/dead" className="text-ink-secondary underline underline-offset-4 hover:text-ink">
-                the full list, with a github search you can run yourself →
+                the most exposed, each with a github search you can run yourself →
               </Link>
             </p>
           </div>
@@ -220,7 +220,7 @@ export default async function LandingPage() {
               body="Three GitHub permissions, listed in full on the security page. aidep opens one onboarding PR: the complete audit of your repo, every deprecated identifier with file and line. Nothing else happens until you merge it."
               asideLabel="onboarding pr"
               aside={`12 findings in 7 files
- 4 dead · 8 dying · nearest 2026-08-26 (5 days)
+ 4 dead · 8 dying · nearest ${upcoming[0].lead.dies} (${daysUntil(upcoming[0].lead.dies, now)} days)
 .github/aidep.json added`}
             />
             <Step
@@ -230,8 +230,8 @@ export default async function LandingPage() {
               asideLabel="your agent brief"
               aside={`sites     src/chat.ts:41, :88
 replace   gpt-5.6-sol
-verified  2026-08-21
-trap      /v1/prompts dies 2026-11-30`}
+verified  ${rows.find((r) => r.api_ids.includes("gpt-4-turbo"))?.verified_at ?? "2026-08-16"}
+trap      /v1/prompts dies ${rows.find((r) => r.api_ids.includes("/v1/prompts"))?.dies ?? "2026-11-30"}`}
             />
             <Step
               n="03"
