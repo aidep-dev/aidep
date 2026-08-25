@@ -220,7 +220,7 @@ export default async function LandingPage() {
               body="Three GitHub permissions, listed in full on the security page. aidep opens one onboarding PR: the complete audit of your repo, every deprecated identifier with file and line. Nothing else happens until you merge it."
               asideLabel="onboarding pr"
               aside={`12 findings in 7 files
- 4 dead · 8 dying · nearest ${upcoming[0].lead.dies} (${daysUntil(upcoming[0].lead.dies, now)} days)
+ 4 dead · 8 dying · nearest ${upcoming[0].lead.dies} (${daysLabel(daysUntil(upcoming[0].lead.dies, now))})
 .github/aidep.json added`}
             />
             <Step
