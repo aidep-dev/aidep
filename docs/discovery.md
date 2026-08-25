@@ -103,6 +103,17 @@ Then one of three calls, written in `DECISIONS.md` with the date:
 - pivot: see below
 - back to the idea stage: the problem is not real enough to build around
 
+### Challenge list, running
+
+Quoted as answers arrive, so the list above starts honest:
+
+- 2026-08-22, Simon Willison, `simonw/llm#1617` (docs pinned `gpt-5-2025-08-07`): "Not useful
+  in this case, those documents automatically list the models and will be automatically updated
+  when they retire." Disconfirmer 3 in its strongest form: the automation exists because he
+  built it. Off-profile on every clause (public repo, tooling author, no support queue), so it
+  does not move the hypothesis; it does teach the outreach queue to check whether a flagged
+  file is generated before sending, and the scanner to skip prose, which it now does.
+
 ## The pivot branch, written now
 
 If vendor emails land and engineers migrate in time, the watch is not the product. What survives

@@ -29,8 +29,9 @@ at `/api/registry` for anyone's agent. `npx aidep .` scans a directory with no a
 and sourced deprecation rows across OpenAI, Anthropic and Google; a scanner; transforms; migration
 PR generation; an eval pack; 220 passing tests.
 
-Two hand-written issues in August moved two strangers' repos within 48 hours. Nobody else has
-installed anything and nobody has asked what it costs.
+Ten hand-written issues in August. Two moved strangers' repos within 48 hours; one came back
+"not useful in this case, the docs auto-update", which is its own data point, logged in
+docs/discovery.md. Nobody else has installed anything and nobody has asked what it costs.
 
 ## What we give away and what we sell
 
