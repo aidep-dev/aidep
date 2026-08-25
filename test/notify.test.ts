@@ -3,7 +3,8 @@ import { AidepConfigSchema } from "../src/config.ts";
 import { markOnboarded, sql, upsertInstallation, upsertRepo } from "../src/db/index.ts";
 import { migrate } from "../src/db/migrate.ts";
 import { GET as confirmRoute } from "../app/api/notify/confirm/route.ts";
-import { confirmAddress, confirmUrl, sendDueNotifications, type Mail, type Mailer } from "../src/notify.ts";
+import { GET as stopRoute } from "../app/api/notify/stop/route.ts";
+import { confirmAddress, confirmUrl, sendDueNotifications, stopUrl, type Mail, type Mailer } from "../src/notify.ts";
 import { MINI_REGISTRY } from "./mini-registry.ts";
 
 process.env.SESSION_SECRET ??= "test-session-secret";
@@ -45,6 +46,7 @@ beforeEach(async () => {
   await sql`delete from notifications where recipient like ${`%@${DOMAIN}`}`;
   await sql`delete from interest where email like ${`%@${DOMAIN}`}`;
   await sql`delete from confirmed_addresses where email like ${`%@${DOMAIN}`}`;
+  await sql`delete from suppressed_addresses where email like ${`%@${DOMAIN}`}`;
   // the exposure and waitlist cases start from confirmed addresses; the
   // confirmation flow has its own cases below
   await confirmAddress(OWNER);
@@ -72,7 +74,7 @@ describe("exposure mail", () => {
     expect(m.text).toContain("- assistants-api (openai): dies 2026-08-26 (10 days), replacement responses-api\n  src/assist.py, src/threads.py");
     expect(m.text).toContain("- gpt-4-turbo (openai): dies 2026-10-23 (68 days)\n  src/chat.py");
     expect(m.text).toContain("/dashboard/acme/bot");
-    expect(m.text).toContain("Remove it there to stop");
+    expect(m.text).toContain("Remove it there, or stop all aidep mail");
 
     const second = await sendDueNotifications({ mailer, rows: MINI_REGISTRY, now: TODAY });
     expect(second.exposure).toBe(0);
@@ -181,5 +183,74 @@ describe("waitlist mail", () => {
     const r = await sendDueNotifications({ mailer, rows: MINI_REGISTRY, now: "2026-07-01" });
     expect(r.waitlist).toBe(0);
     expect(mails.some((m) => m.to === WAITER)).toBe(false);
+  });
+});
+
+describe("unconfigured mail", () => {
+  it("sends nothing and burns no ledger when Resend is not wired", async () => {
+    const savedKey = process.env.RESEND_API_KEY;
+    const savedFrom = process.env.MAIL_FROM;
+    delete process.env.RESEND_API_KEY;
+    delete process.env.MAIL_FROM;
+    try {
+      await sql`insert into interest (email, source) values (${WAITER}, 'landing-waitlist')`;
+      await sql`delete from confirmed_addresses where email = ${WAITER}`;
+      const r = await sendDueNotifications({ rows: MINI_REGISTRY, now: TODAY });
+      expect(r).toEqual({ exposure: 0, waitlist: 0, confirmations: 0 });
+      // the one-ever confirmation must not have been recorded against a no-op send
+      const ledger = await sql`select 1 from notifications where recipient like ${`%@${DOMAIN}`}`;
+      expect(ledger).toHaveLength(0);
+    } finally {
+      if (savedKey !== undefined) process.env.RESEND_API_KEY = savedKey;
+      if (savedFrom !== undefined) process.env.MAIL_FROM = savedFrom;
+    }
+  });
+});
+
+describe("stop link", () => {
+  const stop = (url: string) => stopRoute(new Request(url));
+
+  it("suppresses on a valid token and refuses a forged one", async () => {
+    expect((await stop(stopUrl(OWNER))).status).toBe(200);
+    const forged = new URL(stopUrl(WAITER));
+    forged.searchParams.set("t", "forged-token");
+    expect((await stop(forged.toString())).status).toBe(400);
+    const rows = await sql<{ email: string }[]>`
+      select email from suppressed_addresses where email like ${`%@${DOMAIN}`}`;
+    expect(rows.map((r) => r.email)).toEqual([OWNER]);
+  });
+
+  it("a suppressed address gets nothing, confirmed or not", async () => {
+    await stop(stopUrl(OWNER)); // confirmed notify address
+    await sql`delete from confirmed_addresses where email = ${WAITER}`;
+    await stop(stopUrl(WAITER)); // unconfirmed waitlist address
+    await sql`insert into interest (email, source) values (${WAITER}, 'landing-waitlist')`;
+    const { mails, mailer } = collect();
+    const r = await sendDueNotifications({ mailer, rows: MINI_REGISTRY, now: TODAY });
+    expect(r).toEqual({ exposure: 0, waitlist: 0, confirmations: 0 });
+    expect(mails).toHaveLength(0);
+  });
+
+  it("every outbound mail carries the one-click stop link", async () => {
+    await sql`insert into interest (email, source) values (${WAITER}, 'landing-waitlist')`;
+    const { mails, mailer } = collect();
+    await sendDueNotifications({ mailer, rows: MINI_REGISTRY, now: TODAY });
+    const outbound = mails.filter((m) => !m.subject.startsWith("Confirm"));
+    expect(outbound.length).toBeGreaterThan(0);
+    for (const m of outbound) {
+      expect(m.text, m.subject).toContain(`/api/notify/stop?e=${encodeURIComponent(m.to)}`);
+    }
+  });
+});
+
+describe("confirmation timing", () => {
+  it("asks a waitlist signup to confirm even when nothing dies soon", async () => {
+    await sql`delete from confirmed_addresses where email = ${WAITER}`;
+    await sql`insert into interest (email, source) values (${WAITER}, 'landing-waitlist')`;
+    const { mails, mailer } = collect();
+    // 2026-07-01: no MINI_REGISTRY date inside the 14-day window
+    const r = await sendDueNotifications({ mailer, rows: MINI_REGISTRY, now: "2026-07-01" });
+    expect(r.confirmations).toBe(1);
+    expect(mails.some((m) => m.to === WAITER && m.subject.startsWith("Confirm"))).toBe(true);
   });
 });

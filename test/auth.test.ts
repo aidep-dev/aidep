@@ -189,14 +189,14 @@ describe("interest route", () => {
       new Request("http://localhost/api/interest", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ source: "private-gate", email: INTEREST_EMAIL, context: "repo 6102" }),
+        body: JSON.stringify({ source: "landing-waitlist", email: INTEREST_EMAIL, context: "repo 6102" }),
       }),
     );
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
     const rows = await sql`select source, context from interest where email = ${INTEREST_EMAIL}`;
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ source: "private-gate", context: "repo 6102" });
+    expect(rows[0]).toMatchObject({ source: "landing-waitlist", context: "repo 6102" });
 
     const bad = await POST(
       new Request("http://localhost/api/interest", {

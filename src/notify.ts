@@ -34,6 +34,13 @@ export interface Mail {
 
 export type Mailer = (mail: Mail) => Promise<void>;
 
+/** Whether outbound mail is wired at all. When false, senders must not run:
+ * the ledger records a mail as sent the moment the mailer resolves, and the
+ * confirmation mail is one-per-address-ever, so a no-op send would burn it. */
+export function mailConfigured(): boolean {
+  return Boolean(process.env.RESEND_API_KEY && process.env.MAIL_FROM);
+}
+
 /** Production: Resend, or a log line when unconfigured. Tests inject. */
 export function resendMailer(): Mailer {
   const key = process.env.RESEND_API_KEY;
@@ -82,6 +89,26 @@ async function confirmedSet(emails: string[]): Promise<Set<string>> {
   if (emails.length === 0) return new Set();
   const rows = await sql<{ email: string }[]>`
     select email from confirmed_addresses where email = any(${emails})`;
+  return new Set(rows.map((r) => r.email));
+}
+
+/** One-click stop. Same HMAC as the confirm link: holding the link proves
+ * control of the mailbox, and the row outranks confirmation forever. */
+export function stopUrl(email: string): string {
+  const u = new URL("/api/notify/stop", APP_URL());
+  u.searchParams.set("e", email.toLowerCase());
+  u.searchParams.set("t", confirmToken(email));
+  return u.toString();
+}
+
+export async function suppressAddress(email: string): Promise<void> {
+  await sql`insert into suppressed_addresses (email) values (${email.toLowerCase()}) on conflict do nothing`;
+}
+
+async function suppressedSet(emails: string[]): Promise<Set<string>> {
+  if (emails.length === 0) return new Set();
+  const rows = await sql<{ email: string }[]>`
+    select email from suppressed_addresses where email = any(${emails})`;
   return new Set(rows.map((r) => r.email));
 }
 
@@ -172,6 +199,7 @@ async function record(kind: string, recipient: string, keys: string[]): Promise<
 }
 
 function exposureMail(
+  to: string,
   repo: { owner: string; name: string },
   events: ExposureRow[],
   today: string,
@@ -197,9 +225,11 @@ function exposureMail(
     "",
     `Details and the migration PR button: ${APP_URL()}/dashboard/${full}`,
     "",
-    `You get this because your address is in .github/aidep.json on ${full}. Remove it there to stop. aidep sends nothing else and never opens a PR you did not ask for.`,
+    `You get this because your address is in .github/aidep.json on ${full}. Remove it there, or stop all aidep mail to this address with one click: ${stopUrl(to)}`,
+    "",
+    "aidep sends nothing else and never opens a PR you did not ask for.",
   ].join("\n");
-  return { to: "", subject, text };
+  return { to, subject, text };
 }
 
 /**
@@ -212,6 +242,11 @@ export async function sendDueNotifications(opts: {
   rows?: RegistryRow[];
   now?: string;
 } = {}): Promise<{ exposure: number; waitlist: number; confirmations: number }> {
+  // No mail wiring, no sends and no ledger writes: the no-op mailer resolves
+  // like a success, and the one-ever confirmation must not be spent on it.
+  if (opts.mailer === undefined && !mailConfigured()) {
+    return { exposure: 0, waitlist: 0, confirmations: 0 };
+  }
   const mailer = opts.mailer ?? resendMailer();
   const today = opts.now ?? new Date().toISOString().slice(0, 10);
   const rows = opts.rows ?? (await loadRegistry());
@@ -229,10 +264,12 @@ export async function sendDueNotifications(opts: {
   }
   const notifyAddresses = [...new Set([...byRepo.values()].flatMap((es) => es[0].notify.map((a) => a.toLowerCase())))];
   const confirmed = await confirmedSet(notifyAddresses);
+  const suppressed = await suppressedSet(notifyAddresses);
   let confirmations = 0;
   for (const events of byRepo.values()) {
     const repo = events[0];
     for (const to of repo.notify.map((a) => a.toLowerCase())) {
+      if (suppressed.has(to)) continue;
       if (!confirmed.has(to)) {
         if ((await alreadySent("confirm", to, ["confirm"])).size === 0) {
           await mailer(confirmMail(to, `put this address in .github/aidep.json on ${repo.owner}/${repo.name}`));
@@ -245,7 +282,7 @@ export async function sendDueNotifications(opts: {
       const sent = await alreadySent("exposure", to, keys);
       const fresh = events.filter((e) => !sent.has(`${e.repo_id}:${e.registry_id}`));
       if (fresh.length === 0) continue;
-      await mailer({ ...exposureMail(repo, fresh, today, registry), to });
+      await mailer(exposureMail(to, repo, fresh, today, registry));
       await record("exposure", to, fresh.map((e) => `${e.repo_id}:${e.registry_id}`));
       exposure++;
     }
@@ -261,45 +298,62 @@ export async function sendDueNotifications(opts: {
     list.push(r);
     dates.set(r.dies, list);
   }
-  if (dates.size > 0) {
-    const emails = (
-      await sql<{ email: string }[]>`
-        select distinct lower(email) as email from interest
-        where email is not null and source = 'landing-waitlist'`
-    ).map((r) => r.email);
-    const confirmedWaiters = await confirmedSet(emails);
-    for (const email of emails) {
-      if (!confirmedWaiters.has(email)) {
-        if ((await alreadySent("confirm", email, ["confirm"])).size === 0) {
-          await mailer(confirmMail(email, "left this address on aidep.dev asking to hear when a retirement date gets close"));
-          await record("confirm", email, ["confirm"]);
-          confirmations++;
-        }
-        continue;
+  // The confirmation is not gated on a date being close: someone who signs
+  // up in a quiet stretch confirms now and hears from us when it matters,
+  // instead of getting their first mail weeks after they typed the address.
+  const emails = (
+    await sql<{ email: string }[]>`
+      select distinct lower(email) as email from interest
+      where email is not null and source = 'landing-waitlist'`
+  ).map((r) => r.email);
+  const confirmedWaiters = await confirmedSet(emails);
+  const suppressedWaiters = await suppressedSet(emails);
+  for (const email of emails) {
+    if (suppressedWaiters.has(email)) continue;
+    if (!confirmedWaiters.has(email)) {
+      if ((await alreadySent("confirm", email, ["confirm"])).size === 0) {
+        await mailer(confirmMail(email, "left this address on aidep.dev asking to hear when a retirement date gets close"));
+        await record("confirm", email, ["confirm"]);
+        confirmations++;
       }
-      const sent = await alreadySent("waitlist", email, [...dates.keys()]);
-      for (const [dies, dying] of dates) {
-        if (sent.has(dies)) continue;
-        const ids = dying.map((r) => slug(r.id));
-        const shown = ids.slice(0, 8).join(", ") + (ids.length > 8 ? `, +${ids.length - 8} more` : "");
-        await mailer({
-          to: email,
-          subject: `${ids.length === 1 ? ids[0] : `${ids.length} retirements`} on ${dies} (${daysUntil(dies, today)} days)`,
-          text: [
-            `On ${dies} the following stop answering: ${shown}.`,
-            "",
-            `Check your code now: npx aidep . needs no account. Or install the GitHub App: ${APP_URL()}`,
-            "",
-            "You asked for this on aidep.dev. It goes out once per retirement date and nothing else. Reply to stop.",
-          ].join("\n"),
-        });
-        await record("waitlist", email, [dies]);
-        waitlist++;
-      }
+      continue;
+    }
+    if (dates.size === 0) continue;
+    const sent = await alreadySent("waitlist", email, [...dates.keys()]);
+    for (const [dies, dying] of dates) {
+      if (sent.has(dies)) continue;
+      const ids = dying.map((r) => slug(r.id));
+      const shown = ids.slice(0, 8).join(", ") + (ids.length > 8 ? `, +${ids.length - 8} more` : "");
+      await mailer({
+        to: email,
+        subject: `${ids.length === 1 ? ids[0] : `${ids.length} retirements`} on ${dies} (${daysUntil(dies, today)} days)`,
+        text: [
+          `On ${dies} the following stop answering: ${shown}.`,
+          "",
+          `Check your code now: npx aidep . needs no account. Or install the GitHub App: ${APP_URL()}`,
+          "",
+          `You asked for this on aidep.dev. It goes out once per retirement date and nothing else. Stop with one click: ${stopUrl(email)}`,
+        ].join("\n"),
+      });
+      await record("waitlist", email, [dies]);
+      waitlist++;
     }
   }
 
   return { exposure, waitlist, confirmations };
+}
+
+/**
+ * One mail to the operator's own inbox (the MAIL_FROM address, which routes
+ * to a real mailbox). Used for signals that promise a same-day human reply,
+ * so they cannot depend on someone remembering to run SQL. No-op while mail
+ * is unconfigured; callers treat failure as non-fatal.
+ */
+export async function operatorAlert(subject: string, text: string): Promise<void> {
+  if (!mailConfigured()) return;
+  const from = process.env.MAIL_FROM as string;
+  const to = /<([^>]+)>/.exec(from)?.[1] ?? from;
+  await resendMailer()({ to, subject, text });
 }
 
 /** Exposure mail covers events inside this window with an urgent subject. */

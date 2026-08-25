@@ -97,6 +97,13 @@ create table if not exists confirmed_addresses (
   confirmed_at timestamptz not null default now()
 );
 
+-- Addresses that clicked the stop link. Nothing is ever sent to an address
+-- in here, the confirmation mail included; the row outranks everything.
+create table if not exists suppressed_addresses (
+  email text primary key,
+  suppressed_at timestamptz not null default now()
+);
+
 create table if not exists meta (
   key text primary key,
   value text not null
