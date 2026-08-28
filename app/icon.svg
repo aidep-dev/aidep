@@ -1,9 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
-  <!-- aidep: the dying mark. Sun in the dying amber, horizon in ink, on dark
-       paper. Small-size geometry: the rule is thickened to 1/8 of the width so
-       it survives 16px. -->
-  <rect width="256" height="256" fill="#110f0b"/>
-  <clipPath id="c"><rect x="0" y="0" width="256" height="152"/></clipPath>
-  <circle cx="128" cy="152" r="64" fill="#e0ae57" clip-path="url(#c)"/>
-  <rect x="32" y="136" width="192" height="32" fill="#eae8e2"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 4">
+  <!-- aidep: the dying mark, full bleed. The block in the dying amber; the
+       bite is transparent, so it takes the tab bar's own color and the
+       silhouette reads on light and dark chrome alike. 4x4 grid = crisp 4px
+       cells at 16px. -->
+  <path d="M0 0H2V1H3V2H4V4H0Z" fill="#e0ae57"/>
 </svg>

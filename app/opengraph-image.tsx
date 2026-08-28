@@ -53,12 +53,8 @@ export default async function Image() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-          <svg width="56" height="56" viewBox="0 0 256 256">
-            <clipPath id="c">
-              <rect x="0" y="0" width="256" height="152" />
-            </clipPath>
-            <circle cx="128" cy="152" r="64" fill={INK} clipPath="url(#c)" />
-            <rect x="16" y="146" width="224" height="12" fill={INK} />
+          <svg width="56" height="56" viewBox="0 0 4 4">
+            <path d="M0 0H2V1H3V2H4V4H0Z" fill={INK} />
           </svg>
           <div style={{ fontSize: 36, letterSpacing: 1 }}>aidep</div>
         </div>

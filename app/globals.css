@@ -162,9 +162,9 @@ h3 {
 }
 
 /* ---- the mark ----
- * The sun on its horizon rule, inline next to the name. One x-height tall and
- * sat on the baseline, so the horizon is the baseline and the sun rises to the
- * x-height. The viewBox ends at the bottom of the rule, which makes this work. */
+ * The bitten block, inline next to the name. One x-height tall and sat on the
+ * baseline, so the block's bottom edge is the baseline and its top is the
+ * x-height. The viewBox ends at the full bottom row, which makes this work. */
 .mark {
   display: inline-block;
   height: 1ex;

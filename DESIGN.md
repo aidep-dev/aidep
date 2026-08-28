@@ -22,11 +22,11 @@ Three things are ours and carry the brand:
 - **The row.** Mono, tabular, dated, with a chip that says how many days are
   left. The calendar table is the product visible on the page, so it sits as
   close to the top as the headline allows.
-- **The sun.** A half-set sun on a horizon rule. Sunset is the industry word for
-  retiring an API, and the sun's height is a status. See §4.
-- **The horizon as baseline.** Wherever the mark sits next to the name, the
-  horizon rule is the text baseline and the sun rises to the x-height. The mark
-  is set like a letter of the word.
+- **The block.** A square block losing cells. The square is the model; the
+  bites are the deprecations, and how much is eaten is a status. See §4.
+- **The block on the baseline.** Wherever the mark sits next to the name, the
+  block's bottom edge is the text baseline and its top is the x-height. The
+  mark is set like a letter of the word.
 
 The site is dark-first, sits on a faint engineered grid, and speaks in two
 voices. A serif for sentences, ours. Mono for facts, which is most of the site.
@@ -75,7 +75,7 @@ status chip, because colour on this site means status and nothing else.
 | `dying` / `dying-bg` | `oklch(78% 0.12 80)` / `oklch(23% 0.045 80)` | `oklch(55% 0.12 70)` / `oklch(95.5% 0.035 85)` | dated, still works |
 | `clean` / `clean-bg` | `oklch(72% 0.11 155)` / `oklch(21% 0.04 155)` | `oklch(48% 0.09 155)` / `oklch(95.5% 0.03 155)` | nothing found, or migration verified |
 
-Amber is `dying`. The favicon's sun is amber because the favicon is the dying
+Amber is `dying`. The favicon's block is amber because the favicon is the dying
 mark (§4), and that is the only place amber appears outside a chip or a table.
 
 **Status is never color alone.** Every chip carries a word. A retired id is also
@@ -137,23 +137,25 @@ the footer.
 **Kicker (`Kicker`).** A 2rem hairline in `rule-strong` followed by a `.label`
 in `ink-muted`. Sits above every section head and above the hero headline.
 
-**Mark (`Mark`, `app/mark.tsx`).** A sun on a horizon rule, `currentColor`, no
-gradient, no stroke. Three variants encode status: `clean` (full disc above the
-rule), `dying` (half set), `dead` (a sliver). **`dying` is the identity.** It is
-the only one of the three that is neither a dot nor a line, and it is the moment
-aidep exists for. `clean` and `dead` are for chips and table states; never set
-one as decoration in a band, because a status glyph next to nothing is a claim
-about nothing. The viewBox of every variant ends at the bottom of the horizon
-rule, so the rule is the bottom edge of the box.
+**Mark (`Mark`, `app/mark.tsx`).** A 4x4 block losing cells, `currentColor`,
+one path, no stroke. Three variants encode status: `clean` (intact), `dying`
+(a three-cell bite eaten from the top-right corner), `dead` (the bottom-left L
+the bite left behind). **`dying` is the identity.** Decay is monotonic and
+lives on the outer silhouette, so it survives 16px; the grid divides 16
+evenly, so favicon cells are crisp. `clean` and `dead` are for chips and table
+states; never set one as decoration in a band, because a status glyph next to
+nothing is a claim about nothing. Every variant keeps a full bottom row, so
+the bottom edge of the viewBox is the baseline.
 
 **Lockup (`Wordmark`, `app/mark.tsx`).** The dying mark at `1ex` tall, so the
-horizon is the baseline and the sun's top is the x-height, followed by `aidep`
+block sits on the baseline and its top is the x-height, followed by `aidep`
 in mono lowercase. The only way the mark and the name appear together. Used in
 the header, the footer and the dashboard header; size it with `text-*` on the
 wrapper.
 
-**Favicon (`app/icon.svg`).** The dying mark on dark paper, sun in the dying
-amber, horizon in ink, rule thickened to an eighth of the width so it survives
+**Favicon (`app/icon.svg`).** The dying mark, full bleed, block in the dying
+amber with a transparent bite, so the silhouette reads on light and dark chrome
+alike and it survives
 16px. The one warm dot in a tab bar of white glyphs on dark squares.
 
 **Panel (`.panel`, `.panel-head`).** `paper-raised`, 1px `rule` border, 2px
