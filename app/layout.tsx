@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
-import { Geist_Mono, Newsreader } from "next/font/google";
+import { Archivo, Geist_Mono } from "next/font/google";
 import { themeScript } from "./theme.tsx";
 import "./globals.css";
 
-const display = Newsreader({
+// The width axis is on so headlines can sit at 112% while body copy stays at
+// 100%, one family reading as two voices without a second sans.
+const display = Archivo({
   variable: "--font-display",
   subsets: ["latin"],
-  style: ["normal", "italic"],
-  axes: ["opsz"],
+  axes: ["wdth"],
 });
 
 const mono = Geist_Mono({
@@ -19,7 +20,7 @@ const mono = Geist_Mono({
 export const metadata: Metadata = {
   title: "aidep",
   description:
-    "aidep knows every OpenAI, Anthropic, and Google deprecation, finds them in your repo, opens the migration PR, and proves behavior held with an eval run in your own CI.",
+    "aidep tracks every dated OpenAI, Anthropic and Google model and API retirement, finds them in your repo, opens the migration PR, and proves behavior held with an eval run in your own CI.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

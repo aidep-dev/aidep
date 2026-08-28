@@ -8,7 +8,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const handbook = (await readdir(path.join(process.cwd(), "handbook")))
     .filter((f) => f.endsWith(".md") && f !== "index.md")
     .map((f) => `/handbook/${f.replace(/\.md$/, "")}`);
-  return ["/", "/pricing", "/security", "/dead", "/replacements", "/roadmap", "/handbook", ...handbook].map((route) => ({
+  return ["/", "/pricing", "/security", "/dead", "/roadmap", "/handbook", ...handbook].map((route) => ({
     url: `${base}${route}`,
   }));
 }

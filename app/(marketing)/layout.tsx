@@ -1,24 +1,22 @@
 import Link from "next/link";
 import { Wordmark } from "../mark.tsx";
 import { ThemeToggle } from "../theme.tsx";
+import { NavLink } from "./nav-link.tsx";
+import { installUrl } from "./site.ts";
 
 /* The header carries the product and the trust. Everything else is in the footer. */
 const NAV = [
-  { href: "/dead", label: "dead" },
+  { href: "/dead", label: "register" },
   { href: "/security", label: "security" },
 ];
 const FOOTER_NAV = [
   ...NAV,
-  { href: "/replacements", label: "replacements" },
   { href: "/handbook", label: "handbook" },
   { href: "/roadmap", label: "roadmap" },
   { href: "/pricing", label: "pricing" },
 ];
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
-  const slug = process.env.NEXT_PUBLIC_GITHUB_APP_SLUG;
-  const installUrl = slug ? `https://github.com/apps/${slug}/installations/new` : "/#waitlist";
-
   return (
     <div className="grid-field flex min-h-full flex-1 flex-col">
       <header className="sticky top-0 z-10 border-b border-rule bg-paper/85 backdrop-blur-sm">
@@ -29,20 +27,15 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
 
           <nav className="label hidden items-center gap-7 text-ink-secondary md:flex">
             {NAV.map((item) => (
-              <Link key={item.href} href={item.href} className="hover:text-ink">
+              <NavLink key={item.href} href={item.href}>
                 {item.label}
-              </Link>
+              </NavLink>
             ))}
           </nav>
 
-          <div className="label flex items-center gap-4">
-            <a
-              href={installUrl}
-              className="border border-rule-strong px-3 py-1.5 text-ink hover:border-ink hover:bg-ink hover:text-paper"
-            >
-              install
-            </a>
-          </div>
+          <a href={installUrl()} className="btn btn-outline px-3 py-1.5">
+            install
+          </a>
         </div>
       </header>
 

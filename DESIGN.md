@@ -29,7 +29,8 @@ Three things are ours and carry the brand:
   mark is set like a letter of the word.
 
 The site is dark-first, sits on a faint engineered grid, and speaks in two
-voices. A serif for sentences, ours. Mono for facts, which is most of the site.
+voices. A wide grotesque for sentences, ours. Mono for facts, which is most of
+the site. One accent, the dying amber, on the control that acts on a date.
 
 **Stage.** aidep is weeks old. The site should look like a register kept by a
 small team, not a platform. One page does most of the work; the other pages
@@ -63,9 +64,18 @@ component.
 | `rule` | `oklch(25% 0.006 85)` | `oklch(88% 0.008 90)` | every border, the grid |
 | `rule-strong` | `oklch(40% 0.008 85)` | `oklch(74% 0.01 90)` | kicker rules, button borders |
 
-There is no accent token. Links are `ink` with an underline. Headlines are
-`ink` with no coloured word in them: a coloured word in a headline reads as a
-status chip, because colour on this site means status and nothing else.
+`row-hover` is `ink` at 6% over whatever a table row sits on, and it is the
+only hover surface.
+
+`accent` is the dying amber (`--accent: var(--dying)`; `accent-ink` is
+`paper`) and it appears in exactly two kinds of place: the lookup's Check
+button (`.btn-accent`), and focus (the border and caret of a focused `.input`,
+the focus ring on `.btn` and `.input`; every other focusable gets an `ink`
+ring). The countdown ticks inside a `dying` chip and takes that chip's colour,
+so it stays amber if `accent` is ever repointed. Repointing is one line in
+`globals.css`. Links are `ink` with an underline. Headlines are `ink`
+with no coloured word in them: a coloured word in a headline reads as a status
+chip, because colour everywhere else on this site means status.
 
 ### Status, and only status
 
@@ -87,10 +97,10 @@ struck through (`.struck`), so it reads without color at all.
 
 Two families, both loaded through `next/font/google` in `app/layout.tsx`.
 
-- **Newsreader** for every sentence: `h1`, `h2`, `h3`, paragraphs, display
-  figures. Weight 400 only; the face has enough contrast that bold reads as a
-  different font. The optical-size axis is on, so the same family sets a 5.5rem
-  headline and a 16px paragraph without looking like two fonts.
+- **Archivo** for every sentence: `h1`, `h2`, `h3`, paragraphs, display
+  figures. Weight 400 for body, 500 for headings and figures, never bold. The
+  width axis is on: headings and figures sit at `font-stretch: 112%`, body at
+  100%, so one family reads as two voices without a second sans.
 - **Geist Mono** for every fact and for the name. Kickers, nav, the wordmark,
   table heads, table bodies that hold identifiers or dates, chips, datelines,
   footer, code, commands. If it is a fact rather than a sentence, it is mono.
@@ -105,18 +115,19 @@ Scale:
 |---|---|
 | hero headline | `text-[clamp(2.75rem,7.5vw,5.5rem)] leading-[0.95]` |
 | closing headline | `text-[clamp(2.25rem,6vw,4rem)]` |
-| page title | `text-5xl sm:text-6xl` |
+| page title | `text-5xl sm:text-6xl`; a sentence title (`/dead`) drops one step to `text-4xl sm:text-5xl` |
 | section head | `text-3xl sm:text-4xl` |
 | step title | `text-2xl` |
 | display figure | `.figure text-4xl sm:text-5xl`, at most one per page |
 | step numeral | `.figure text-5xl text-ink-muted/60` |
 | body | `text-base leading-relaxed` |
+| hero input | `.input py-4 text-base sm:text-lg` |
 | table body | `font-mono text-[13px]` |
 | wordmark | `font-mono text-xl leading-none`, lowercase |
 | label | `.label` (11px mono caps) |
 
-The contrast between a 5.5rem serif headline and an 11px mono label is the whole
-typographic idea. Do not add sizes in between to soften it.
+The contrast between a 5.5rem wide-set headline and an 11px mono label is the
+whole typographic idea. Do not add sizes in between to soften it.
 
 **Headlines say what the reader gets.** Read only the `h1` and `h2`s on a page,
 top to bottom. That skim must tell a stranger what aidep is, what it opens, and
@@ -129,13 +140,15 @@ good.
 ## 4. Component stylings
 
 **Header.** Sticky, `border-b border-rule`, translucent paper with a light blur.
-The lockup on the left, `.label` nav in the middle (`dead`, `security`), an
+The lockup on the left, `.label` nav in the middle (`register`, `security`), an
 outlined `install` control on the right. One row. Collapses to lockup and
 install below `md`. The theme toggle and the handbook and pricing links live in
 the footer.
 
-**Kicker (`Kicker`).** A 2rem hairline in `rule-strong` followed by a `.label`
-in `ink-muted`. Sits above every section head and above the hero headline.
+**Kicker (`Kicker`, `app/(marketing)/kicker.tsx`).** A 2rem hairline in
+`rule-strong` followed by a `.label` in `ink-muted`. Sits above every section
+head and every page title. The centered hero uses the bare `.label` without
+the hairline, because a hairline has nothing to align to there.
 
 **Mark (`Mark`, `app/mark.tsx`).** A 4x4 block losing cells, `currentColor`,
 one path, no stroke. Three variants encode status: `clean` (intact), `dying`
@@ -162,15 +175,34 @@ alike and it survives
 radius. Optional head strip with a `.label`. Holds tables, code, the command
 box, and the asides beside each step. No shadow.
 
-**Command box.** A `.panel` with the command in mono and a `.label` cell on the
-right saying what it costs you (`no account`). The prompt `$` is `ink-muted`.
-This is the hero's one control.
+**Command box (`CopyCommand`, `app/(marketing)/live.tsx`).** A `.panel` button
+with the command in mono and a `.label` cell on the right that says `copy`,
+then `copied` for a moment after a click. The prompt `$` is `ink-muted`. On the
+landing it sits under the lookup with a `.label` beside it saying what it costs
+(`the whole repo, no account, no token`).
 
-**Button, primary.** `.label border border-ink bg-ink text-paper px-4 py-3`,
-inverting on hover. Mono caps, like everything else that is a control.
+**Button (`.btn`).** Mono caps on a 1px rule, ink-filled, `px-4 py-3` (the
+header's is `px-3 py-1.5`). Press feedback is `scale(0.97)` over 160ms; hover
+inverts, only where a hover exists. `.btn-outline` is the header's install
+control and every secondary action. `.btn-accent` is the lookup's Check and
+nothing else.
 
-**Button, outline.** `.label border border-rule-strong px-3 py-1.5 text-ink`,
-filling with ink on hover. The header's install control.
+**Input (`.input`).** Mono on `paper-raised`, 1px `rule`, `accent` caret;
+focus moves the border to `accent`. The hero size adds `py-4 text-base
+sm:text-lg` and a `.key` hint (`/`) that focuses it from anywhere on the page.
+
+**Lookup (`Lookup`, `app/(marketing)/dead/lookup.tsx`).** The one interactive
+component: the input, Check, and the chain of hops it walks, each hop a row in
+a `.panel` with a chip. Hops arrive with `.reveal` (opacity and 4px of travel,
+200ms on `--ease-out`, 40ms apart). The placeholder types through real ids from
+the registry and stops the moment the reader types; under reduced motion it
+holds the first id.
+
+**Countdown (`Countdown`, `live.tsx`).** The page's one moving number: the
+nearest firm retirement date's chip ticks `23d 07:14:02` in the chip's own
+`dying`. The server HTML carries the days label; the tick starts after
+hydration, and never starts under reduced motion. An earliest-possible date
+gets the plain chip, because a Google date is not a deadline.
 
 **Table.** Inside a `.panel`. `table-fixed` with a `<colgroup>` so two tables
 stacked on one page share column edges. Head row `.label text-ink-muted`, body
@@ -181,10 +213,14 @@ stacked on one page share column edges. Head row `.label text-ink-muted`, body
 and a word in it.
 
 **Step row (`Step`).** Three columns on `md`: a `.figure` numeral, title plus
-body, and a `.panel` aside with a `.label` head. Rows separated by `divide-y`.
+body, and a `.panel` aside framed like the artifact it shows: a head strip
+with the thing's name and a state chip (`open`, `opt-in`, `held 18/20`), then
+its text. Rows separated by `divide-y`.
 
-**Display figure.** One `.figure` per page, and it must be computed at render
-from the registry or our own tables. A typed number is a fact that will rot,
+**Display figure.** One display figure per page, and it must be computed at
+render from the registry or our own tables. The step numerals share `.figure`'s
+face but are counters, not claims; the rule is about numbers that assert
+something. A typed number is a fact that will rot,
 which is the product's own thesis. If the honest value is small, print the
 small value or print nothing; never pad it with a second number.
 
@@ -205,15 +241,20 @@ tokens only. Table heads and inline code are mono.
 - **The grid field.** `.grid-field` on the marketing wrapper: 64px cells in
   `rule` at 55%, fixed to the viewport. Content scrolls over it. Panels sit on
   it; they do not try to align to it.
-- **The pyramid.** The hero is a kicker, a headline, one paragraph, one control.
-  Everything else, including the trust claims and the numbers, comes further
-  down where it has room. Nothing in the hero competes with the headline.
+- **The pyramid.** The hero is a kicker, a question, one paragraph, the lookup,
+  and the command box under it. Two controls, on purpose: the question a
+  stranger can answer in five seconds, then the command that answers it for a
+  whole repo. Install waits for the end. Everything else, including the trust
+  claims and the numbers, comes further down where it has room.
 - **Sections** are separated by `border-t border-rule` on the section itself
   with `py-20` inside. No cards as section containers.
 - **Vertical rhythm** is 20 between sections, 10 between a head and its content,
   8 to 9 between a paragraph and its control.
 - **Two columns** only where content is genuinely paired (the objection section,
-  step rows). They stack below `md`.
+  step rows, the security page's contents rail). They stack below `md`.
+- **Document pages** (`/pricing`, `/security`, the handbook) run denser than
+  the landing and the register: `h2 text-2xl`, sections `mt-12 border-t pt-6`,
+  the same rhythm `.handbook-prose` gives markdown.
 
 ---
 
@@ -244,14 +285,19 @@ Radius is 2px on panels and nothing on anything else.
 
 - No hex, rgb, or Tailwind palette colors in components.
 - No shadows, gradients, or glass beyond the header blur.
-- No accent. Red, amber and green are dead, dying and clean, and appear only on
-  a chip, a table cell, a struck id, or the favicon.
+- No accent beyond `accent`, and `accent` only in the three places §2 names.
+  Red, amber and green are dead, dying and clean, and appear only on a chip, a
+  table cell, a struck id, or the favicon.
 - No coloured or italic word inside a headline.
 - No bold in the display face.
 - No typed number that the registry or a table could compute.
 - No stat whose honest value you would rather hide.
-- No second control in the hero.
-- No animation beyond a color transition on hover.
+- No third control in the hero.
+- No motion beyond the four the system carries: press feedback on `.btn`, the
+  lookup's `.reveal`, its placeholder, and the countdown. Movement uses
+  `--ease-out` and `--ease-in-out` from `globals.css`, colour changes use
+  plain `ease`, nothing runs over 300ms, and every one has a reduced-motion
+  form.
 - No icon-only controls without an `aria-label`.
 - No new radius, font, spacing step or surface without changing this file first.
 
@@ -265,8 +311,8 @@ Tailwind's default breakpoints; `md` (768px) is the one that matters.
   carries the full nav at every width.
 - Step rows: stacked below `md`, three columns above.
 - Tables never reflow into cards. They scroll inside `overflow-x-auto`.
-- The page body must never scroll horizontally. The hero mark is inside
-  `overflow-hidden` for exactly this reason.
+- The page body must never scroll horizontally; wide tables scroll inside
+  their own container.
 
 ---
 
@@ -278,6 +324,8 @@ Text       text-ink  text-ink-secondary  text-ink-muted
 Borders    border-rule  border-rule-strong
 Labels     .label                 (11px mono caps, the metadata voice)
 Status     bg-dead-bg/text-dead   bg-dying-bg/text-dying   bg-clean-bg/text-clean
+Accent     bg-accent/text-accent-ink   (Check, the focused input, the countdown; nowhere else)
+Controls   .btn  .btn-outline  .btn-accent  .input  .key
 Struck     .struck
 Panels     .panel  .panel-head
 Figures    .figure                (one per page, computed)
@@ -291,19 +339,20 @@ Shadows    none
 Prompt to paste when adding a page:
 
 > Build this using only the tokens and classes in DESIGN.md. Dark is the default.
-> Metadata is `.label`, sentences are Newsreader at weight 400, facts are Geist
-> Mono. Tables sit inside `.panel` with a `<colgroup>`. Headlines are plain ink
-> and say what the reader gets. Red, amber and green are reserved for dead,
-> dying and clean, and every chip carries a word. At most one display figure,
-> computed at render. No shadows, no gradients, no hardcoded colors. Verify it
-> in both themes.
+> Metadata is `.label`, sentences are Archivo (headings at weight 500 on the
+> width axis), facts are Geist Mono. Controls are `.btn`, `.btn-outline` and
+> `.input`; `.btn-accent` is the lookup's Check only. Tables sit inside `.panel`
+> with a `<colgroup>`. Headlines are plain ink and say what the reader gets.
+> Red, amber and green are reserved for dead, dying and clean, and every chip
+> carries a word. At most one display figure, computed at render. No shadows,
+> no gradients, no hardcoded colors, no new motion. Verify it in both themes.
 
 Before opening a PR that touches UI:
 
 ```sh
 grep -rE "(bg|text|border)-(white|black|gray|slate|zinc|neutral|stone|red|amber|green|blue)-[0-9]" app/
-grep -rnE "#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?\b" app/ | grep -v icon.svg
-grep -rnE 'className="em|text-accent|text-link' app/
+grep -rnE "#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?\b" app/ | grep -v "icon.svg\|opengraph-image"
+grep -rnE 'className="em|text-link' app/
 ```
 
 All three should return nothing.

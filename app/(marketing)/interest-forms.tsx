@@ -27,7 +27,7 @@ export function WaitlistForm() {
 
   return (
     <form
-      className="mt-0 flex gap-2"
+      className="mt-0 flex flex-col gap-2 sm:flex-row"
       onSubmit={async (e) => {
         e.preventDefault();
         setState("sending");
@@ -42,17 +42,13 @@ export function WaitlistForm() {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@company.com"
           aria-label="Email"
-          className="w-full border border-rule bg-paper-raised px-3 py-2.5 font-mono text-sm text-ink placeholder:text-ink-muted focus:border-rule-strong focus:outline-none"
+          className="input"
         />
         {state === "error" && (
           <p className="mt-2 text-sm text-ink-secondary">That didn&rsquo;t go through. Try again.</p>
         )}
       </div>
-      <button
-        type="submit"
-        disabled={state === "sending"}
-        className="label h-fit shrink-0 border border-rule-strong px-4 py-3 text-ink hover:border-ink hover:bg-ink hover:text-paper disabled:opacity-60"
-      >
+      <button type="submit" disabled={state === "sending"} className="btn btn-outline h-fit shrink-0 px-4 py-3">
         {state === "sending" ? "Joining…" : "Join the waitlist"}
       </button>
     </form>
@@ -87,17 +83,13 @@ export function UpgradeButton() {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@company.com"
           aria-label="Email"
-          className="w-full border border-rule bg-paper-raised px-3 py-2.5 font-mono text-sm text-ink placeholder:text-ink-muted focus:border-rule-strong focus:outline-none"
+          className="input"
         />
         {state === "error" && (
           <p className="mt-2 text-sm text-ink-secondary">That didn&rsquo;t go through. Try again.</p>
         )}
       </div>
-      <button
-        type="submit"
-        disabled={state === "sending"}
-        className="label h-fit shrink-0 border border-rule-strong px-5 py-3 text-ink hover:border-ink hover:bg-ink hover:text-paper disabled:opacity-60"
-      >
+      <button type="submit" disabled={state === "sending"} className="btn btn-outline h-fit shrink-0 px-5 py-3">
         {state === "sending" ? "One moment…" : "Upgrade"}
       </button>
     </form>

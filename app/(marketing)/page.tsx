@@ -1,17 +1,14 @@
 import Link from "next/link";
 import { loadRegistry, type RegistryRow } from "../../src/registry.ts";
-import { Mark } from "../mark.tsx";
-import { daysLabel, daysUntil, formatDies } from "./dates.ts";
+import { chipClass, daysLabel, daysUntil, formatDies, statusLabel } from "./dates.ts";
+import { Lookup } from "./dead/lookup.tsx";
 import { WaitlistForm } from "./interest-forms.tsx";
+import { Kicker } from "./kicker.tsx";
+import { CopyCommand, Countdown } from "./live.tsx";
+import { PROVIDER, installUrl, shortId } from "./site.ts";
 
 /* Re-render hourly so the days-away chips stay honest. */
 export const revalidate = 3600;
-
-const PROVIDER: Record<RegistryRow["provider"], string> = {
-  openai: "OpenAI",
-  anthropic: "Anthropic",
-  google: "Google",
-};
 
 /* Retired heavyweights for the "already dead" band; order is display order. */
 const DEAD_PICKS = [
@@ -21,26 +18,15 @@ const DEAD_PICKS = [
   "anthropic:model:claude-opus-4-1-20250805",
 ];
 
-function shortId(row: RegistryRow): string {
-  return row.id.split(":").slice(2).join(":");
-}
-
-function DaysChip({ days }: { days: number }) {
-  const tone =
-    days <= 0
-      ? "bg-dead-bg text-dead"
-      : days <= 90
-        ? "bg-dying-bg text-dying"
-        : "border border-rule text-ink-secondary";
-  return <span className={`label ml-2 inline-block whitespace-nowrap px-1.5 py-0.5 ${tone}`}>{daysLabel(days)}</span>;
-}
-
-function Kicker({ children }: { children: React.ReactNode }) {
+/* The register's own tone and words for a calendar row, so a Google
+ * earliest-possible date never reads as a failure here and a fact there. */
+function StatusChip({ row, days }: { row: RegistryRow; days: number }) {
   return (
-    <p className="label flex items-center gap-3 text-ink-muted">
-      <span className="inline-block h-px w-8 bg-rule-strong" aria-hidden />
-      {children}
-    </p>
+    <span
+      className={`label ml-2 inline-block whitespace-nowrap px-1.5 py-0.5 ${chipClass(days, row.status === "retired")}`}
+    >
+      {statusLabel(row, days)}
+    </span>
   );
 }
 
@@ -63,6 +49,7 @@ export default async function LandingPage() {
     lead: group[0],
     alsoDying: group.length - 1,
   }));
+  const next = upcoming[0];
   const dead = DEAD_PICKS.map((id) => rows.find((r) => r.id === id)).filter(
     (r): r is RegistryRow => r !== undefined,
   );
@@ -76,45 +63,40 @@ export default async function LandingPage() {
   const rottedReplacements = withReplacement.filter((r) =>
     knownApiIds.has(r.replacement_id as string),
   ).length;
-
-  const slug = process.env.NEXT_PUBLIC_GITHUB_APP_SLUG;
-  const installUrl = slug ? `https://github.com/apps/${slug}/installations/new` : "#waitlist";
+  // The two rows the step asides quote. Every value in them comes from here;
+  // a missing row drops its line rather than printing a stale date.
+  const turbo = rows.find((r) => r.api_ids.includes("gpt-4-turbo"));
+  const prompts = rows.find((r) => r.api_ids.includes("/v1/prompts"));
+  // What the lookup's placeholder types through: the nearest dying ids, then
+  // the retired heavyweights. Real ids, so a stranger sees what to paste.
+  const examples = [
+    ...upcoming.slice(0, 3).map((u) => u.lead.api_ids[0]),
+    ...dead.map((r) => r.api_ids[0]),
+  ].slice(0, 6);
 
   return (
     <>
-      {/* ---- hero ---- */}
-      <section className="relative overflow-hidden">
-        {/* The mark, large and faint, bleeding off the right edge. Herdr does
-         * this with its ram; it gives the hero a second layer without a photo. */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -right-24 top-8 w-[34rem] text-ink opacity-[0.06] sm:-right-16 sm:w-[40rem]"
-        >
-          <Mark variant="dying" className="h-auto w-full" />
-        </div>
-
-        <div className="relative mx-auto max-w-6xl px-6 pb-20 pt-20 sm:pt-28">
-          <Kicker>openai · anthropic · google</Kicker>
-          <h1 className="mt-6 max-w-5xl text-[clamp(2.75rem,7.5vw,5.5rem)] leading-[0.95] text-ink">
-            The model deprecation
-            <br />
-            tracker that opens the PR.
+      {/* ---- hero: the lookup is the product on the page ---- */}
+      <section>
+        <div className="mx-auto max-w-6xl px-6 pb-16 pt-20 text-center sm:pt-28">
+          <p className="label text-ink-muted">openai · anthropic · google</p>
+          <h1 className="mx-auto mt-6 max-w-4xl text-[clamp(2.75rem,7.5vw,5.5rem)] leading-[0.95] text-ink">
+            Is the model you call still alive?
           </h1>
-          <p className="mt-8 max-w-xl leading-relaxed text-ink-secondary">
-            Every OpenAI, Anthropic and Google model and API retirement, dated and sourced. Run it
-            on a repo and get every identifier you still call, with the day it stops working.
+          <p className="mx-auto mt-8 max-w-xl leading-relaxed text-ink-secondary">
+            Paste a model id, an endpoint or a param. aidep follows every announced replacement
+            until it reaches one with no retirement on file, and tells you the day each stops
+            working.
           </p>
 
-          {/* One control. Install is in the header and at the end, once the
-           * reader has seen what the PR is. */}
-          <div className="panel mt-9 inline-flex items-stretch font-mono text-sm">
-            <code className="flex items-center gap-3 px-4 py-2.5 text-ink">
-              <span className="text-ink-muted">$</span>
-              <span>npx aidep .</span>
-            </code>
-            <span className="label flex items-center border-l border-rule px-3 text-ink-muted">
-              no account
-            </span>
+          {/* Two controls, on purpose: the question, then the command that
+           * answers it for a whole repo. Install waits for the end. */}
+          <div className="mx-auto mt-9 max-w-2xl text-left">
+            <Lookup hero examples={examples} />
+          </div>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-x-4 gap-y-3">
+            <CopyCommand command="npx aidep ." />
+            <p className="label text-ink-muted">the whole repo, no account, no token</p>
           </div>
         </div>
       </section>
@@ -147,24 +129,37 @@ export default async function LandingPage() {
                 </tr>
               </thead>
               <tbody className="font-mono text-[13px]">
-                {upcoming.map(({ lead, alsoDying }) => (
-                  <tr key={lead.id} className="border-b border-rule last:border-b-0">
-                    <td className="px-4 py-3 text-ink">
-                      {shortId(lead)}
-                      {alsoDying > 0 && (
-                        <span className="label ml-2 text-ink-muted">+{alsoDying} that day</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-ink-secondary">{PROVIDER[lead.provider]}</td>
-                    <td className="whitespace-nowrap px-4 py-3 tabular-nums text-ink">
-                      {formatDies(lead.dies)}
-                      <DaysChip days={daysUntil(lead.dies, now)} />
-                    </td>
-                    <td className="px-4 py-3 text-ink-secondary">
-                      {lead.replacement_id ?? lead.replacement_notes ?? "none announced"}
-                    </td>
-                  </tr>
-                ))}
+                {upcoming.map(({ lead, alsoDying }, i) => {
+                  const days = daysUntil(lead.dies, now);
+                  return (
+                    <tr key={lead.id} className="border-b border-rule last:border-b-0 hover:bg-row-hover">
+                      <td className="px-4 py-3 text-ink">
+                        {shortId(lead)}
+                        {alsoDying > 0 && (
+                          <span className="label ml-2 text-ink-muted">+{alsoDying} that day</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-ink-secondary">{PROVIDER[lead.provider]}</td>
+                      <td className="whitespace-nowrap px-4 py-3 tabular-nums text-ink">
+                        {formatDies(lead.dies)}
+                        {/* the nearest firm date is the page's one moving number */}
+                        {i === 0 && days > 0 && !lead.dies_is_earliest_possible ? (
+                          <span className="label ml-2 inline-block whitespace-nowrap bg-dying-bg px-1.5 py-0.5 text-dying">
+                            <Countdown dies={lead.dies} fallback={daysLabel(days)} />
+                          </span>
+                        ) : (
+                          <StatusChip row={lead} days={days} />
+                        )}
+                        {lead.dies_is_earliest_possible && (
+                          <span className="label ml-2 whitespace-nowrap text-ink-muted">earliest possible</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-ink-secondary">
+                        {lead.replacement_id ?? lead.replacement_notes ?? "none announced"}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -172,16 +167,24 @@ export default async function LandingPage() {
           <div className="mt-10">
             <Kicker>already dead</Kicker>
             <div className="panel mt-4 overflow-x-auto">
-              <table className="w-full min-w-[680px] table-fixed border-collapse font-mono text-[13px]">
+              <table className="w-full min-w-[680px] table-fixed border-collapse text-sm">
                 <colgroup>
                   <col className="w-[38%]" />
                   <col className="w-[14%]" />
                   <col className="w-[24%]" />
                   <col />
                 </colgroup>
-                <tbody>
+                <thead>
+                  <tr className="label border-b border-rule text-left text-ink-muted">
+                    <th className="px-4 py-2.5 font-normal">identifier</th>
+                    <th className="px-4 py-2.5 font-normal">provider</th>
+                    <th className="px-4 py-2.5 font-normal">retired</th>
+                    <th className="px-4 py-2.5 font-normal">replacement</th>
+                  </tr>
+                </thead>
+                <tbody className="font-mono text-[13px]">
                   {dead.map((r) => (
-                    <tr key={r.id} className="border-b border-rule last:border-b-0">
+                    <tr key={r.id} className="border-b border-rule last:border-b-0 hover:bg-row-hover">
                       <td className="struck px-4 py-3">{shortId(r)}</td>
                       <td className="px-4 py-3 text-ink-muted">{PROVIDER[r.provider]}</td>
                       <td className="whitespace-nowrap px-4 py-3 tabular-nums text-ink-muted">
@@ -198,9 +201,9 @@ export default async function LandingPage() {
                 </tbody>
               </table>
             </div>
-            <p className="label mt-3 text-ink-muted">
-              <Link href="/dead" className="text-ink-secondary underline underline-offset-4 hover:text-ink">
-                the most exposed, each with a github search you can run yourself →
+            <p className="mt-3 text-sm text-ink-muted">
+              <Link href="/dead" className="text-ink underline underline-offset-4">
+                the full register, with a github search you can run per row →
               </Link>
             </p>
           </div>
@@ -208,7 +211,7 @@ export default async function LandingPage() {
       </section>
 
       {/* ---- after install ---- */}
-      <section className="border-t border-rule">
+      <section id="after-install" className="border-t border-rule">
         <div className="mx-auto max-w-6xl px-6 py-20">
           <Kicker>after install</Kicker>
           <h2 className="mt-4 text-3xl sm:text-4xl">One PR per retirement date</h2>
@@ -218,38 +221,54 @@ export default async function LandingPage() {
               n="01"
               title="Install"
               body="Three GitHub permissions, listed in full on the security page. aidep opens one onboarding PR: the complete audit of your repo, every deprecated identifier with file and line. Nothing else happens until you merge it."
-              asideLabel="onboarding pr"
-              aside={`12 findings in 7 files
- 4 dead · 8 dying · nearest ${upcoming[0].lead.dies} (${daysLabel(daysUntil(upcoming[0].lead.dies, now))})
-.github/aidep.json added`}
+              asideLabel="example · pull request · onboarding"
+              chip="open"
+              aside={[
+                "12 findings in 7 files",
+                " 4 dead · 8 dying",
+                next
+                  ? `nearest ${formatDies(next.lead.dies)} (${daysLabel(daysUntil(next.lead.dies, now))})`
+                  : "no dates ahead",
+                ".github/aidep.json added",
+              ].join("\n")}
             />
             <Step
               n="02"
               title="Opt in to migration PRs"
               body="One PR per retirement date, grouping every file it touches. The safe rewrites are applied; anything that cannot be rewritten safely becomes a manual checklist in the PR body, not a guess. aidep never touches .github/workflows."
-              asideLabel="your agent brief"
-              aside={`sites     src/chat.ts:41, :88
-replace   gpt-5.6-sol
-verified  ${rows.find((r) => r.api_ids.includes("gpt-4-turbo"))?.verified_at ?? "2026-08-16"}
-trap      /v1/prompts dies ${rows.find((r) => r.api_ids.includes("/v1/prompts"))?.dies ?? "2026-11-30"}`}
+              asideLabel="example · pull request · agent brief"
+              chip="opt-in"
+              aside={[
+                "sites     src/chat.ts:41, :88",
+                turbo && `replace   ${turbo.replacement_id ?? "none announced"}`,
+                turbo && `verified  ${turbo.verified_at}`,
+                prompts?.dies && `trap      /v1/prompts dies ${prompts.dies}`,
+              ]
+                .filter(Boolean)
+                .join("\n")}
             />
             <Step
               n="03"
               title="Merge on evidence"
               body="Turn on evals and a model-swap PR ships a pack that replays your prompts against the old model and the new one, in your CI with your keys, and posts the result. That comment is the merge decision."
-              asideLabel="github-actions · #241"
-              aside={`gpt-4o-2024-05-13 -> gpt-5.6-sol
-held on 18/20 prompts
-
-held     summarize_invoice
-held     classify_ticket
-drifted  extract_line_items`}
+              asideLabel="example · github-actions"
+              chip="held 18/20"
+              chipTone="clean"
+              aside={[
+                turbo?.replacement_id ? `gpt-4-turbo -> ${turbo.replacement_id}` : "old model -> new model",
+                "held on 18/20 prompts",
+                "",
+                "held     summarize_invoice",
+                "held     classify_ticket",
+                "drifted  extract_line_items",
+              ].join("\n")}
             />
           </ol>
 
-          <p className="label mt-8 max-w-2xl leading-relaxed text-ink-muted">
+          <p className="mt-8 max-w-2xl text-sm leading-relaxed text-ink-muted">
             why deterministic matters: openai&rsquo;s own migration guide points at prompt objects
-            that are themselves deprecated (dead 2026-11-30). aidep inlines configs instead.
+            that are themselves deprecated{prompts?.dies ? ` (dead ${formatDies(prompts.dies)})` : ""}.
+            aidep inlines configs instead.
           </p>
         </div>
       </section>
@@ -264,7 +283,7 @@ drifted  extract_line_items`}
             <p className="figure mt-10 text-4xl leading-none text-ink sm:text-5xl">
               {rottedReplacements} / {withReplacement.length}
             </p>
-            <p className="label mt-3 max-w-xs leading-relaxed text-ink-muted">
+            <p className="mt-3 max-w-xs text-sm leading-relaxed text-ink-muted">
               vendor-named replacements that are themselves already deprecated
             </p>
           </div>
@@ -279,16 +298,16 @@ drifted  extract_line_items`}
               <span className="text-ink">
                 {rottedReplacements} name a replacement that is itself already deprecated
               </span>
-              . One in {Math.round(withReplacement.length / Math.max(rottedReplacements, 1))}. An
-              agent working from last year&rsquo;s docs lands on a dead target that often, then
-              says &ldquo;done.&rdquo;
+              .{rottedReplacements > 0 && ` One in ${Math.round(withReplacement.length / rottedReplacements)}.`} An
+              agent working from last year&rsquo;s docs lands on a dead target that often, then says
+              &ldquo;done.&rdquo;
             </p>
-            <p className="label text-ink-muted">
+            <p className="text-sm text-ink-muted">
               aidep tells it when, and tells it what is true today.{" "}
-              <Link href="/replacements" className="text-ink-secondary underline underline-offset-4 hover:text-ink">
+              <Link href="/dead#check" className="text-ink underline underline-offset-4">
                 check what yours picked →
               </Link>{" "}
-              <Link href="/handbook" className="text-ink-secondary underline underline-offset-4 hover:text-ink">
+              <Link href="/handbook" className="text-ink underline underline-offset-4">
                 handbook →
               </Link>
             </p>
@@ -313,15 +332,15 @@ drifted  extract_line_items`}
             </p>
             <p>
               Your tarball is fetched, scanned in memory and discarded. What persists is a path, a
-              line, and the identifier matched there. Never source.
+              line, the identifier matched there, and the registry row it matched. Never source.
             </p>
             <p>
               No customer model key, ever. Eval runs happen in your CI with your keys. The one
               egress is our own Anthropic key, used to draft eval cases, and only when your repo
               opts in.
             </p>
-            <p className="label text-ink-muted">
-              <Link href="/security" className="text-ink-secondary underline underline-offset-4 hover:text-ink">
+            <p className="text-sm text-ink-muted">
+              <Link href="/security" className="text-ink underline underline-offset-4">
                 the security page, in full →
               </Link>
             </p>
@@ -336,15 +355,12 @@ drifted  extract_line_items`}
             Install once. Hear from us when a date gets close.
           </h2>
           <p className="mx-auto mt-6 max-w-xl leading-relaxed text-ink-secondary">
-            The register watches your repos and opens the PR. Or leave an email and we will write
-            when the next shutdown date gets close, and nothing else.
+            The app watches your repos and opens the PR. Or leave an email, confirm it once, and we
+            will write when the next shutdown date gets close, and nothing else.
           </p>
 
           <div className="mx-auto mt-10 flex max-w-md flex-col items-center gap-4">
-            <a
-              href={installUrl}
-              className="label w-full border border-ink bg-ink px-6 py-4 text-paper hover:bg-transparent hover:text-ink"
-            >
+            <a href={installUrl()} className="btn w-full px-6 py-4">
               install on github →
             </a>
             <p className="label text-ink-muted">or</p>
@@ -353,9 +369,9 @@ drifted  extract_line_items`}
             </div>
           </div>
 
-          <p className="label mt-12 text-ink-muted">
+          <p className="mt-12 text-sm text-ink-muted">
             free on every repo, migration prs included · $39 an org a month adds the eval run ·{" "}
-            <Link href="/pricing" className="text-ink-secondary underline underline-offset-4 hover:text-ink">
+            <Link href="/pricing" className="text-ink underline underline-offset-4">
               pricing
             </Link>
           </p>
@@ -365,28 +381,39 @@ drifted  extract_line_items`}
   );
 }
 
+/* The aside is the artifact itself as a window: a title strip with the
+ * thing's name and its state, then its text. Labelled as an example, because
+ * on this site an unlabelled PR number reads as a claim. */
 function Step({
   n,
   title,
   body,
   asideLabel,
+  chip,
+  chipTone = "muted",
   aside,
 }: {
   n: string;
   title: string;
   body: string;
   asideLabel: string;
+  chip: string;
+  chipTone?: "muted" | "clean";
   aside: string;
 }) {
+  const tone = chipTone === "clean" ? "bg-clean-bg text-clean" : "border border-rule text-ink-secondary";
   return (
     <li className="grid gap-6 py-10 md:grid-cols-[5rem_1fr_minmax(0,22rem)] md:gap-10">
-      <div className="figure text-5xl leading-none text-ink-muted/60">{n}</div>
+      <div className="figure text-5xl leading-none text-ink-muted">{n}</div>
       <div className="max-w-xl">
         <h3 className="mb-3 text-2xl">{title}</h3>
         <p className="leading-relaxed text-ink-secondary">{body}</p>
       </div>
       <div className="panel font-mono text-xs leading-relaxed text-ink-secondary md:mt-1">
-        <div className="panel-head label">{asideLabel}</div>
+        <div className="panel-head label flex items-center justify-between gap-3">
+          <span>{asideLabel}</span>
+          <span className={`whitespace-nowrap px-1.5 py-0.5 ${tone}`}>{chip}</span>
+        </div>
         <pre className="whitespace-pre-wrap px-3.5 py-3">{aside}</pre>
       </div>
     </li>
