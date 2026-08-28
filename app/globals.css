@@ -2,9 +2,10 @@
 
 /* aidep design tokens.
  *
- * A register of dying model APIs. Dark-first. A serif voice for sentences,
+ * A register of dying model APIs. Dark-first. A wide grotesque for sentences,
  * mono for everything that is a fact. Three status colors carry meaning and
- * never decorate; there is no accent.
+ * never decorate. The one accent is the dying amber, and it sits only on the
+ * control that acts on a date and on the number that is counting down.
  *
  * Three theme states, the GitHub model:
  *   no attribute          follow the OS (prefers-color-scheme)
@@ -32,6 +33,17 @@
   --dying-bg: oklch(23% 0.045 80);
   --clean: oklch(72% 0.11 155);
   --clean-bg: oklch(21% 0.04 155);
+
+  /* Theme-independent: these resolve through the tokens above, so the light
+   * blocks below do not repeat them. */
+  --accent: var(--dying);
+  --accent-ink: var(--paper);
+  --row-hover: color-mix(in oklch, var(--ink) 6%, transparent);
+  /* The grid needs a stronger line on light paper to stay visible at 55%. */
+  --grid-line: var(--rule);
+  /* Strong curves; Tailwind's ease-out and ease-in-out utilities read these. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
 @media (prefers-color-scheme: light) {
@@ -52,6 +64,7 @@
     --dying-bg: oklch(95.5% 0.035 85);
     --clean: oklch(48% 0.09 155);
     --clean-bg: oklch(95.5% 0.03 155);
+    --grid-line: var(--rule-strong);
   }
 }
 
@@ -72,6 +85,7 @@
   --dying-bg: oklch(95.5% 0.035 85);
   --clean: oklch(48% 0.09 155);
   --clean-bg: oklch(95.5% 0.03 155);
+  --grid-line: var(--rule-strong);
 }
 
 @theme inline {
@@ -89,6 +103,9 @@
   --color-dying-bg: var(--dying-bg);
   --color-clean: var(--clean);
   --color-clean-bg: var(--clean-bg);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-row-hover: var(--row-hover);
   --font-display: var(--font-display);
   --font-mono: var(--font-mono);
 }
@@ -96,16 +113,20 @@
 body {
   background: var(--paper);
   color: var(--ink);
-  font-family: var(--font-display), serif;
+  font-family: var(--font-display), sans-serif;
   font-feature-settings: "kern" 1, "liga" 1;
 }
 
+/* Headlines sit on the width axis at 112%: the same family as the body,
+ * read as a second voice. Weight 500, never bold. */
 h1,
 h2,
 h3 {
-  font-family: var(--font-display), serif;
-  font-weight: 400;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 500;
+  font-stretch: 112%;
   letter-spacing: -0.02em;
+  text-wrap: balance;
 }
 
 /* ---- the page grid ----
@@ -113,8 +134,8 @@ h3 {
  * so content scrolls over it. It reads as engineered rather than decorated. */
 .grid-field {
   background-image:
-    linear-gradient(to right, color-mix(in oklch, var(--rule) 55%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in oklch, var(--rule) 55%, transparent) 1px, transparent 1px);
+    linear-gradient(to right, color-mix(in oklch, var(--grid-line) 55%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklch, var(--grid-line) 55%, transparent) 1px, transparent 1px);
   background-size: 64px 64px;
   background-position: center top;
 }
@@ -131,12 +152,13 @@ h3 {
 }
 
 /* ---- display figures ----
- * Big counts in the serif, lining tabular numerals, tight. */
+ * Big counts in the display face, lining tabular numerals, tight. */
 .figure {
-  font-family: var(--font-display), serif;
+  font-family: var(--font-display), sans-serif;
   font-variant-numeric: lining-nums tabular-nums;
   letter-spacing: -0.04em;
-  font-weight: 400;
+  font-weight: 500;
+  font-stretch: 112%;
 }
 
 /* Strike-through in the dead color for a retired id: "delete the unnecessary". */
@@ -275,7 +297,8 @@ h3 {
   border-color: var(--rule);
 }
 
-/* A wide table scrolls inside itself rather than scrolling the page. */
+/* A wide table scrolls inside itself rather than scrolling the page, and it
+ * sits on the same raised surface as every hand-built table. */
 .handbook-prose table {
   display: block;
   max-width: 100%;
@@ -283,12 +306,15 @@ h3 {
   margin-top: 1.25rem;
   border-collapse: collapse;
   font-size: 0.875rem;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
 }
 
 .handbook-prose th,
 .handbook-prose td {
   border-bottom: 1px solid var(--rule);
-  padding: 0.5rem 1rem 0.5rem 0;
+  padding: 0.75rem 1rem;
   text-align: left;
 }
 
@@ -303,4 +329,137 @@ h3 {
 
 .handbook-prose td {
   color: var(--ink-secondary);
+}
+
+/* ---- controls ----
+ * Every control is mono caps on a 1px rule. Press feedback is a 0.97 scale
+ * over 160ms; hover styles only where a hover exists. In the components layer
+ * so a utility on the element (w-auto, px-6) wins over the defaults here. */
+@layer components {
+/* One focus ring for everything a keyboard can land on; the controls below
+ * restate it in the accent. */
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  transition:
+    transform 160ms var(--ease-out),
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.btn:disabled {
+  opacity: 0.6;
+}
+.btn-outline {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--rule-strong);
+}
+.btn-accent {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn:hover {
+    background: transparent;
+    color: var(--ink);
+  }
+  .btn-outline:hover {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .btn-accent:hover {
+    background: transparent;
+    color: var(--accent);
+  }
+}
+
+.input {
+  width: 100%;
+  border: 1px solid var(--rule);
+  background: var(--paper-raised);
+  padding: 0.625rem 0.75rem;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.875rem;
+  color: var(--ink);
+  caret-color: var(--accent);
+  transition: border-color 160ms ease;
+}
+.input::placeholder {
+  color: var(--ink-muted);
+}
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.btn:focus-visible,
+.input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* A keyboard hint inside a control: the key that does the same thing. */
+.key {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  line-height: 1;
+  padding: 0.2rem 0.4rem;
+  border: 1px solid var(--rule-strong);
+  border-bottom-width: 2px;
+  border-radius: 2px;
+  color: var(--ink-muted);
+}
+}
+
+/* ---- the one entrance ----
+ * A chain hop arriving under the lookup. Opacity and 4px of travel, 200ms on
+ * the strong ease-out, 40ms per hop. Reduced motion keeps the fade only. */
+.reveal {
+  animation: reveal 200ms var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes reveal-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    animation-name: reveal-fade;
+  }
+  .btn:active {
+    transform: none;
+  }
 }

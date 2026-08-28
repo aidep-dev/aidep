@@ -19,5 +19,5 @@ to fetch the tarball, which is scanned in memory and discarded.
 
 The registry is CC0 and lives at [aidep.dev](https://aidep.dev): the
 [retirement calendar](https://aidep.dev/dead), a
-[replacement checker](https://aidep.dev/replacements), and a GitHub App that watches your repos
+[replacement checker](https://aidep.dev/dead#check), and a GitHub App that watches your repos
 and opens the migration PR when you ask it to.

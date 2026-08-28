@@ -17,11 +17,11 @@ same two quoted strings, so anyone can rerun it.]
 ## Why your agent did not save you
 
 Ask your model what replaces a dead id and it answers from its training data, which predates the
-deprecation by construction. Of the [N, computed on /replacements] registry rows that name a
+deprecation by construction. Of the [N, computed on /dead] registry rows that name a
 vendor replacement, [M] name one that is itself already deprecated. One in six. `ada` pointed at
 `babbage-002`, which died 2026-09-28. [Confirm the 09-28 outcome when it happens.]
 
-Try it: paste your replacement into https://aidep.dev/replacements before you trust it.
+Try it: paste your replacement into https://aidep.dev/dead#check before you trust it.
 
 ## What is dying October 23
 

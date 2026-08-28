@@ -1,73 +1,83 @@
 import type { Metadata } from "next";
+import { loadRegistry } from "../../../src/registry.ts";
 import { UpgradeButton } from "../interest-forms.tsx";
+import { Kicker } from "../kicker.tsx";
+import { installUrl } from "../site.ts";
 
 export const metadata: Metadata = {
   title: "Pricing · aidep",
   description: "Everything is free on every repo, including migration PRs. $39 per org per month adds the eval run that proves behavior held. Here is the arithmetic behind that number.",
 };
 
-export default function PricingPage() {
-  const slug = process.env.NEXT_PUBLIC_GITHUB_APP_SLUG;
-  const installUrl = slug ? `https://github.com/apps/${slug}/installations/new` : "/#waitlist";
+/* The per-year counts in the arithmetic come from the registry, like every other number on the site. */
+export const revalidate = 3600;
+
+export default async function PricingPage() {
+  const rows = await loadRegistry();
+  const datesIn = (year: string) => new Set(rows.filter((r) => r.dies?.startsWith(year)).map((r) => r.dies)).size;
 
   return (
-    <div className="mx-auto max-w-5xl px-6 pb-20 pt-16">
-      <h1 className="text-5xl sm:text-6xl">Pricing</h1>
-      <p className="mt-3 max-w-xl text-lg text-ink-secondary">
+    <div className="mx-auto max-w-6xl px-6 pb-20 pt-16">
+      <Kicker>free on every repo · one paid line</Kicker>
+      <h1 className="mt-4 text-5xl sm:text-6xl">Pricing</h1>
+      <p className="mt-3 max-w-xl leading-relaxed text-ink-secondary">
         Finding the problem and fixing it are free, on every repo you own. The paid line is the
         proof that the fix did not change behavior.
       </p>
 
       <div className="mt-12 grid gap-10 md:grid-cols-5 md:gap-14">
-        <section className="border-t-2 border-ink pt-6 md:col-span-3">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-3xl">Free</h2>
-            <p className="text-ink-secondary">$0</p>
+        <div className="panel md:col-span-3">
+          <div className="panel-head label">free</div>
+          <div className="px-5 py-5">
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-3xl">Free</h2>
+              <p className="text-ink-secondary">$0</p>
+            </div>
+            <ul className="mt-6 max-w-md space-y-3 text-sm leading-relaxed text-ink-secondary">
+              <li className="border-b border-rule pb-3">Every repo, public or private, no cap</li>
+              <li className="border-b border-rule pb-3">
+                Scanning, deprecation alerts, and the onboarding audit PR
+              </li>
+              <li className="border-b border-rule pb-3">
+                Migration PRs, with the manual checklist for anything we will not rewrite blindly
+              </li>
+              <li className="border-b border-rule pb-3">No seat limit, no card</li>
+            </ul>
+            <a href={installUrl()} className="btn mt-8 px-5 py-3">
+              install on github →
+            </a>
           </div>
-          <ul className="mt-6 max-w-md space-y-3 text-sm leading-relaxed text-ink-secondary">
-            <li className="border-b border-rule pb-3">Every repo, public or private, no cap</li>
-            <li className="border-b border-rule pb-3">
-              Scanning, deprecation alerts, and the onboarding audit PR
-            </li>
-            <li className="border-b border-rule pb-3">
-              Migration PRs, with the manual checklist for anything we will not rewrite blindly
-            </li>
-            <li className="border-b border-rule pb-3">No seat limit, no card</li>
-          </ul>
-          <a
-            href={installUrl}
-            className="mt-8 inline-block bg-ink px-5 py-2.5 text-sm font-medium text-paper hover:bg-ink/85"
-          >
-            Start free
-          </a>
-        </section>
+        </div>
 
-        <section className="border-t border-rule pt-6 md:col-span-2">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-3xl">Proof</h2>
-            <p className="text-ink-secondary">$39</p>
+        <div className="panel md:col-span-2">
+          <div className="panel-head label">proof</div>
+          <div className="px-5 py-5">
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-3xl">Proof</h2>
+              <p className="text-ink-secondary">$39</p>
+            </div>
+            <p className="mt-1 text-sm text-ink-muted">per org per month, flat</p>
+            <ul className="mt-6 space-y-3 text-sm leading-relaxed text-ink-secondary">
+              <li className="border-b border-rule pb-3">
+                An eval pack on every migration PR: your prompts, old model against new
+              </li>
+              <li className="border-b border-rule pb-3">
+                Runs in your CI with your keys. We never hold them
+              </li>
+              <li className="border-b border-rule pb-3">
+                Held or drifted per prompt, in the PR body, before you merge
+              </li>
+              <li className="border-b border-rule pb-3">
+                Every repo in the org. No per-seat, no per-repo, no metering
+              </li>
+            </ul>
+            <UpgradeButton />
+            <p className="mt-3 text-xs text-ink-muted">
+              Leave an address and we reply by hand. No card here yet; the first orgs are set up one
+              at a time.
+            </p>
           </div>
-          <p className="mt-1 text-sm text-ink-muted">per org per month, flat</p>
-          <ul className="mt-6 space-y-3 text-sm leading-relaxed text-ink-secondary">
-            <li className="border-b border-rule pb-3">
-              An eval pack on every migration PR: your prompts, old model against new
-            </li>
-            <li className="border-b border-rule pb-3">
-              Runs in your CI with your keys. We never hold them
-            </li>
-            <li className="border-b border-rule pb-3">
-              Held or drifted per prompt, in the PR body, before you merge
-            </li>
-            <li className="border-b border-rule pb-3">
-              Every repo in the org. No per-seat, no per-repo, no metering
-            </li>
-          </ul>
-          <UpgradeButton />
-          <p className="mt-3 text-xs text-ink-muted">
-            Leave an address and we reply by hand. No card here yet; the first orgs are set up one
-            at a time.
-          </p>
-        </section>
+        </div>
       </div>
 
       <section className="mt-20 border-t border-rule pt-6">
@@ -78,44 +88,50 @@ export default function PricingPage() {
         </p>
 
         <h3 className="mt-10 text-lg">What a year of deprecations costs you</h3>
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[520px] border-collapse text-sm">
+        <div className="panel mt-4 overflow-x-auto">
+          <table className="w-full min-w-[520px] table-fixed border-collapse text-sm">
+            <colgroup>
+              <col className="w-[30%]" />
+              <col className="w-[18%]" />
+              <col />
+            </colgroup>
             <thead>
               <tr className="label border-b border-rule text-left text-ink-muted">
-                <th className="py-2 pr-4 font-medium">Input</th>
-                <th className="py-2 pr-4 font-medium">Assumed</th>
-                <th className="py-2 font-medium">Why</th>
+                <th className="px-4 py-2.5 font-normal">input</th>
+                <th className="px-4 py-2.5 font-normal">assumed</th>
+                <th className="px-4 py-2.5 font-normal">why</th>
               </tr>
             </thead>
-            <tbody>
-              <tr className="border-b border-rule">
-                <td className="py-2.5 pr-4 text-ink">Retirements that hit your code</td>
-                <td className="py-2.5 pr-4 tabular-nums text-ink-secondary">3 / year</td>
-                <td className="py-2.5 text-ink-secondary">
-                  Our registry counted 6 distinct retirement dates in 2024, 14 in 2025 and 31 in
-                  2026 across OpenAI, Anthropic and Google. You intersect a fraction of those
+            <tbody className="font-mono text-[13px]">
+              <tr className="border-b border-rule last:border-b-0 hover:bg-row-hover">
+                <td className="px-4 py-3 text-ink">Retirements that hit your code</td>
+                <td className="px-4 py-3 tabular-nums text-ink-secondary">3 / year</td>
+                <td className="px-4 py-3 font-display text-sm text-ink-secondary">
+                  Our registry counts {datesIn("2024")} distinct retirement dates in 2024,{" "}
+                  {datesIn("2025")} in 2025 and {datesIn("2026")} in 2026 across OpenAI, Anthropic
+                  and Google. You intersect a fraction of those
                 </td>
               </tr>
-              <tr className="border-b border-rule">
-                <td className="py-2.5 pr-4 text-ink">Engineer hours per retirement</td>
-                <td className="py-2.5 pr-4 tabular-nums text-ink-secondary">8</td>
-                <td className="py-2.5 text-ink-secondary">
-                  Finding every call site, rewriting, and confirming behaviour held. Range is 4 to
+              <tr className="border-b border-rule last:border-b-0 hover:bg-row-hover">
+                <td className="px-4 py-3 text-ink">Engineer hours per retirement</td>
+                <td className="px-4 py-3 tabular-nums text-ink-secondary">8</td>
+                <td className="px-4 py-3 font-display text-sm text-ink-secondary">
+                  Finding every call site, rewriting, and confirming behavior held. Range is 4 to
                   16; this is the midpoint
                 </td>
               </tr>
-              <tr className="border-b border-rule">
-                <td className="py-2.5 pr-4 text-ink">Loaded hourly cost</td>
-                <td className="py-2.5 pr-4 tabular-nums text-ink-secondary">$100</td>
-                <td className="py-2.5 text-ink-secondary">
+              <tr className="border-b border-rule last:border-b-0 hover:bg-row-hover">
+                <td className="px-4 py-3 text-ink">Loaded hourly cost</td>
+                <td className="px-4 py-3 tabular-nums text-ink-secondary">$100</td>
+                <td className="px-4 py-3 font-display text-sm text-ink-secondary">
                   Below the $150 to $250 that senior US rates actually run, so this understates the
                   value rather than flattering it
                 </td>
               </tr>
-              <tr className="border-b border-rule">
-                <td className="py-2.5 pr-4 text-ink">Value per year</td>
-                <td className="py-2.5 pr-4 tabular-nums text-ink">$2,400</td>
-                <td className="py-2.5 text-ink-secondary">3 × 8 × $100, before counting any outage</td>
+              <tr className="border-b border-rule last:border-b-0 hover:bg-row-hover">
+                <td className="px-4 py-3 text-ink">Value per year</td>
+                <td className="px-4 py-3 tabular-nums text-ink">$2,400</td>
+                <td className="px-4 py-3 font-display text-sm text-ink-secondary">3 × 8 × $100, before counting any outage</td>
               </tr>
             </tbody>
           </table>
@@ -130,34 +146,38 @@ export default function PricingPage() {
         </p>
 
         <h3 className="mt-12 text-lg">What the alternatives charge</h3>
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[420px] border-collapse text-sm">
+        <div className="panel mt-4 overflow-x-auto">
+          <table className="w-full min-w-[420px] table-fixed border-collapse text-sm">
+            <colgroup>
+              <col className="w-[55%]" />
+              <col />
+            </colgroup>
             <thead>
               <tr className="label border-b border-rule text-left text-ink-muted">
-                <th className="py-2 pr-4 font-medium">Tool</th>
-                <th className="py-2 font-medium">Price</th>
+                <th className="px-4 py-2.5 font-normal">tool</th>
+                <th className="px-4 py-2.5 font-normal">price</th>
               </tr>
             </thead>
-            <tbody>
-              <tr className="border-b border-rule">
-                <td className="py-2.5 pr-4 text-ink">Dependabot, Renovate</td>
-                <td className="py-2.5 text-ink-secondary">$0, and they should be</td>
+            <tbody className="font-mono text-[13px]">
+              <tr className="border-b border-rule last:border-b-0 hover:bg-row-hover">
+                <td className="px-4 py-3 text-ink">Dependabot, Renovate</td>
+                <td className="px-4 py-3 font-display text-sm text-ink-secondary">$0, and they should be</td>
               </tr>
-              <tr className="border-b border-rule">
-                <td className="py-2.5 pr-4 text-ink">Mend Renovate Enterprise</td>
-                <td className="py-2.5 tabular-nums text-ink-secondary">$250 per developer per year</td>
+              <tr className="border-b border-rule last:border-b-0 hover:bg-row-hover">
+                <td className="px-4 py-3 text-ink">Mend Renovate Enterprise</td>
+                <td className="px-4 py-3 tabular-nums text-ink-secondary">$250 per developer per year</td>
               </tr>
-              <tr className="border-b border-rule">
-                <td className="py-2.5 pr-4 text-ink">CodeRabbit Pro</td>
-                <td className="py-2.5 tabular-nums text-ink-secondary">$24 to $30 per developer per month</td>
+              <tr className="border-b border-rule last:border-b-0 hover:bg-row-hover">
+                <td className="px-4 py-3 text-ink">CodeRabbit Pro</td>
+                <td className="px-4 py-3 tabular-nums text-ink-secondary">$24 to $30 per developer per month</td>
               </tr>
-              <tr className="border-b border-rule">
-                <td className="py-2.5 pr-4 text-ink">Snyk Team</td>
-                <td className="py-2.5 tabular-nums text-ink-secondary">$25 to $52 per developer per month</td>
+              <tr className="border-b border-rule last:border-b-0 hover:bg-row-hover">
+                <td className="px-4 py-3 text-ink">Snyk Team</td>
+                <td className="px-4 py-3 tabular-nums text-ink-secondary">$25 to $52 per developer per month</td>
               </tr>
-              <tr className="border-b border-rule">
-                <td className="py-2.5 pr-4 text-ink">aidep Proof</td>
-                <td className="py-2.5 tabular-nums text-ink">$39 per org per month</td>
+              <tr className="border-b border-rule last:border-b-0 hover:bg-row-hover">
+                <td className="px-4 py-3 text-ink">aidep Proof</td>
+                <td className="px-4 py-3 tabular-nums text-ink">$39 per org per month</td>
               </tr>
             </tbody>
           </table>

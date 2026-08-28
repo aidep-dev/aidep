@@ -16,7 +16,7 @@ export function daysLabel(days: number): string {
 export function chipClass(days: number | null, retired: boolean): string {
   if (retired) return "bg-dead-bg text-dead";
   if (days !== null && days <= 90) return "bg-dying-bg text-dying";
-  return "text-ink-muted";
+  return "border border-rule text-ink-secondary";
 }
 
 /**

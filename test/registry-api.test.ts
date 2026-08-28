@@ -104,7 +104,7 @@ describe("llms.txt", () => {
       expect(l, l).toMatch(/^- \[[^\]]+\]\(https:\/\/(aidep\.dev|github\.com\/aidep-dev|www\.npmjs\.com\/package\/aidep)[^)]*\)/);
     }
     expect(text).toContain("/api/registry/gpt-4-turbo");
-    expect(text).toContain("/replacements");
+    expect(text).toContain("/dead");
     expect(text).toContain("/roadmap");
   });
 });
