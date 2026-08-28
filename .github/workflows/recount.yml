@@ -21,7 +21,9 @@ jobs:
       - run: npm ci
       - run: node tools/recount.ts
         env:
-          GITHUB_SEARCH_TOKEN: ${{ secrets.GITHUB_SEARCH_TOKEN }}
+          # Actions forbids secret names starting with GITHUB_; the secret is
+          # SEARCH_TOKEN and the script accepts either env name.
+          SEARCH_TOKEN: ${{ secrets.SEARCH_TOKEN }}
       - name: Commit the count
         run: |
           git add evidence/recount

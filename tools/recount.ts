@@ -16,9 +16,11 @@ const QUERIES = ["client.beta.threads", "client.beta.assistants"];
 const SearchResponse = z.object({ total_count: z.number().int().min(0) });
 const OUT_DIR = "evidence/recount";
 
-const token = process.env.GITHUB_SEARCH_TOKEN;
+// In Actions the secret is SEARCH_TOKEN: secret names must not start with
+// GITHUB_, which is why the original name could never be configured there.
+const token = process.env.GITHUB_SEARCH_TOKEN ?? process.env.SEARCH_TOKEN;
 if (token === undefined || token === "") {
-  console.error("GITHUB_SEARCH_TOKEN is not set; code search needs an authenticated token.");
+  console.error("GITHUB_SEARCH_TOKEN/SEARCH_TOKEN is not set; code search needs an authenticated token.");
   process.exit(1);
 }
 
