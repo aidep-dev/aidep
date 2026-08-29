@@ -1,24 +1,31 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { replacementChain, type Chain } from "../../../src/chain.ts";
+import { useEffect, useId, useRef, useState } from "react";
+import { findRow, replacementChain, type Chain } from "../../../src/chain.ts";
 import type { RegistryRow } from "../../../src/registry.ts";
 import { chipClass, daysUntil, statusLabel } from "../dates.ts";
+import { PROVIDER } from "../site.ts";
+import { suggest, type Suggestion } from "./suggest.ts";
 
 const FILE_A_ROW = "https://github.com/aidep-dev/aidep-registry/issues/new?template=file-a-row.yml";
 
 /**
  * Paste the id your model suggested; walk its replacement chain in the
  * browser against the same /api/registry any agent can read. Fetched once,
- * then every lookup is local. `examples` are real ids the placeholder types
- * through so a stranger sees what to paste; `hero` is the landing size.
+ * on focus, then every lookup and every suggestion is local. `examples` are
+ * real ids the placeholder types through and the empty box offers on focus;
+ * `hero` is the landing size.
  */
 export function Lookup({ examples, hero = false }: { examples: string[]; hero?: boolean }) {
   const [rows, setRows] = useState<RegistryRow[] | null>(null);
   const [query, setQuery] = useState("");
   const [chain, setChain] = useState<Chain | null>(null);
   const [state, setState] = useState<"idle" | "loading" | "error">("idle");
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
   const input = useRef<HTMLInputElement>(null);
+  const pending = useRef<Promise<RegistryRow[] | null> | null>(null);
+  const listId = useId();
   const placeholder = useTypewriter(examples, query === "");
 
   // "/" focuses the box from anywhere on the page. Keyboard-initiated, so it
@@ -39,17 +46,27 @@ export function Lookup({ examples, hero = false }: { examples: string[]; hero?: 
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  async function lookup(id: string) {
-    let data = rows;
-    if (data === null) {
-      setState("loading");
-      try {
-        data = (await (await fetch("/api/registry")).json()) as RegistryRow[];
+  function ensureRows(): Promise<RegistryRow[] | null> {
+    if (rows !== null) return Promise.resolve(rows);
+    pending.current ??= fetch("/api/registry")
+      .then((r) => r.json() as Promise<RegistryRow[]>)
+      .then((data) => {
         setRows(data);
-      } catch {
-        setState("error");
-        return;
-      }
+        return data;
+      })
+      .catch(() => {
+        pending.current = null;
+        return null;
+      });
+    return pending.current;
+  }
+
+  async function lookup(id: string) {
+    if (rows === null) setState("loading");
+    const data = await ensureRows();
+    if (data === null) {
+      setState("error");
+      return;
     }
     setState("idle");
     // endpoint ids carry a leading slash the user probably did not type
@@ -59,6 +76,49 @@ export function Lookup({ examples, hero = false }: { examples: string[]; hero?: 
       if (slashed.hops.length > 0) found = slashed;
     }
     setChain(found);
+    setOpen(false);
+  }
+
+  function pick(s: Suggestion) {
+    setQuery(s.apiId);
+    setActive(-1);
+    setOpen(false);
+    void lookup(s.apiId);
+  }
+
+  const typed = query.trim();
+  const suggestions: Suggestion[] =
+    rows === null
+      ? []
+      : typed !== ""
+        ? suggest(rows, typed)
+        : examples
+            .map((id) => {
+              const row = findRow(rows, id);
+              return row ? { row, apiId: id } : null;
+            })
+            .filter((s): s is Suggestion => s !== null);
+  const listOpen = open && suggestions.length > 0;
+  const now = new Date();
+
+  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      if (suggestions.length === 0) return;
+      e.preventDefault();
+      setOpen(true);
+      const n = suggestions.length;
+      setActive((a) => (e.key === "ArrowDown" ? (a + 1) % n : (a - 1 + n) % n));
+      return;
+    }
+    if (e.key === "Enter" && listOpen && active >= 0) {
+      e.preventDefault();
+      pick(suggestions[active]);
+      return;
+    }
+    if (e.key === "Escape") {
+      setOpen(false);
+      setActive(-1);
+    }
   }
 
   return (
@@ -76,9 +136,24 @@ export function Lookup({ examples, hero = false }: { examples: string[]; hero?: 
             ref={input}
             type="text"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setActive(-1);
+              setOpen(true);
+            }}
+            onFocus={() => {
+              void ensureRows();
+              setOpen(true);
+            }}
+            onBlur={() => setOpen(false)}
+            onKeyDown={onKeyDown}
             placeholder={placeholder}
+            role="combobox"
             aria-label="Model id, endpoint or param"
+            aria-autocomplete="list"
+            aria-expanded={listOpen}
+            aria-controls={listId}
+            aria-activedescendant={listOpen && active >= 0 ? `${listId}-${active}` : undefined}
             autoComplete="off"
             spellCheck={false}
             className={hero ? "input py-4 pr-3 text-base sm:pr-12 sm:text-lg" : "input pr-3 sm:pr-10"}
@@ -86,6 +161,38 @@ export function Lookup({ examples, hero = false }: { examples: string[]; hero?: 
           <kbd className="key absolute right-3 top-1/2 hidden -translate-y-1/2 sm:block" aria-hidden>
             /
           </kbd>
+          {listOpen && (
+            <ul
+              id={listId}
+              role="listbox"
+              aria-label="Closest registry rows"
+              onMouseDown={(e) => e.preventDefault()}
+              className="panel absolute left-0 right-0 top-full z-10 mt-1 max-h-80 overflow-y-auto"
+            >
+              {typed === "" && <li className="label border-b border-rule px-4 py-2 text-ink-muted">try one of these</li>}
+              {suggestions.map((s, i) => {
+                const days = s.row.dies ? daysUntil(s.row.dies, now) : null;
+                const retired = s.row.status === "retired";
+                return (
+                  <li
+                    key={s.row.id}
+                    id={`${listId}-${i}`}
+                    role="option"
+                    aria-selected={i === active}
+                    onClick={() => pick(s)}
+                    onMouseEnter={() => setActive(i)}
+                    className={`flex cursor-pointer flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5 text-sm ${i === active ? "bg-row-hover" : ""}`}
+                  >
+                    <code className={retired ? "struck" : "text-ink"}>{s.apiId}</code>
+                    <span className={`label inline-block px-1.5 py-0.5 ${chipClass(days, retired)}`}>
+                      {statusLabel(s.row, days)}
+                    </span>
+                    <span className="label ml-auto text-ink-muted">{PROVIDER[s.row.provider]}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
         <button
           type="submit"
@@ -98,7 +205,9 @@ export function Lookup({ examples, hero = false }: { examples: string[]; hero?: 
       {state === "error" && (
         <p className="mt-3 text-sm text-ink-secondary">Could not load the registry. Try again.</p>
       )}
-      {chain !== null && state !== "loading" && <ChainView chain={chain} />}
+      {chain !== null && state !== "loading" && (
+        <ChainView chain={chain} closest={rows ? suggest(rows, chain.query, 3) : []} onPick={pick} />
+      )}
     </div>
   );
 }
@@ -158,7 +267,15 @@ function Then() {
   );
 }
 
-function ChainView({ chain }: { chain: Chain }) {
+function ChainView({
+  chain,
+  closest,
+  onPick,
+}: {
+  chain: Chain;
+  closest: Suggestion[];
+  onPick: (s: Suggestion) => void;
+}) {
   const now = new Date();
   if (chain.hops.length === 0) {
     return (
@@ -169,6 +286,21 @@ function ChainView({ chain }: { chain: Chain }) {
           File a row
         </a>{" "}
         if you know of a date.
+        {closest.length > 0 && (
+          <span className="mt-2 block">
+            Closest in the registry:{" "}
+            {closest.map((s) => (
+              <button
+                key={s.row.id}
+                type="button"
+                onClick={() => onPick(s)}
+                className="mr-3 font-mono text-ink underline underline-offset-4"
+              >
+                {s.apiId}
+              </button>
+            ))}
+          </span>
+        )}
       </p>
     );
   }

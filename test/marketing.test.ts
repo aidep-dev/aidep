@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { daysLabel, daysUntil } from "../app/(marketing)/dates.ts";
+import { suggest } from "../app/(marketing)/dead/suggest.ts";
 import { applyFilters, type Filters, type RegisterEntry } from "../app/(marketing)/dead/filters.ts";
 import type { RegistryRow } from "../src/registry.ts";
 
@@ -28,6 +29,52 @@ describe("landing mocks", () => {
     const source = await readFile(new URL("../app/(marketing)/page.tsx", import.meta.url), "utf8");
     expect(source).not.toMatch(/nearest 20\d\d-/);
     expect(source).not.toMatch(/verified {2}20\d\d-/);
+  });
+});
+
+describe("lookup suggestions", () => {
+  const row =(id: string, api_ids: string[], status: RegistryRow["status"] = "deprecated"): RegistryRow => ({
+    id,
+    provider: id.startsWith("openai") ? "openai" : "anthropic",
+    surface: id.includes(":endpoint:") ? "endpoint" : "model",
+    api_ids,
+    status,
+    announced: null,
+    dies: null,
+    dies_is_earliest_possible: false,
+    replacement_id: null,
+    replacement_notes: null,
+    migration_url: null,
+    source_url: "https://docs.anthropic.com/en/docs/about-claude/model-deprecations",
+    verified_at: "2026-08-01",
+    platform: "first-party",
+  });
+  const rows = [
+    row("anthropic:model:claude-3-5-sonnet-20241022", ["claude-3-5-sonnet-20241022"], "retired"),
+    row("anthropic:model:claude-3-5-sonnet-20240620", ["claude-3-5-sonnet-20240620"]),
+    row("anthropic:model:claude-3-7-sonnet", ["claude-3-7-sonnet-20250219", "claude-3-7-sonnet-latest"]),
+    row("openai:model:gpt-4", ["gpt-4", "gpt-4-0613"]),
+    row("openai:model:gpt-4-turbo", ["gpt-4-turbo"]),
+    row("openai:endpoint:assistants", ["/v1/assistants"]),
+  ];
+  const ids = (q: string, limit?: number) => suggest(rows, q, limit).map((s) => s.apiId);
+
+  it("ignores spaces and punctuation, so a spoken name finds its dated ids", () => {
+    expect(ids("claude 3.5 sonnet")).toEqual(["claude-3-5-sonnet-20240620", "claude-3-5-sonnet-20241022"]);
+  });
+
+  it("ranks an exact id over a prefix, and the shorter id first", () => {
+    expect(ids("gpt-4")).toEqual(["gpt-4", "gpt-4-turbo"]);
+  });
+
+  it("matches pieces in order when they are not adjacent, on the row's best id", () => {
+    expect(ids("sonnet latest")).toEqual(["claude-3-7-sonnet-latest"]);
+  });
+
+  it("finds an endpoint without its slash, caps the list, and offers nothing for blank input", () => {
+    expect(ids("assistants")[0]).toBe("/v1/assistants");
+    expect(ids("a", 2)).toHaveLength(2);
+    expect(ids("  ")).toEqual([]);
   });
 });
 

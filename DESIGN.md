@@ -196,7 +196,13 @@ component: the input, Check, and the chain of hops it walks, each hop a row in
 a `.panel` with a chip. Hops arrive with `.reveal` (opacity and 4px of travel,
 200ms on `--ease-out`, 40ms apart). The placeholder types through real ids from
 the registry and stops the moment the reader types; under reduced motion it
-holds the first id.
+holds the first id. Typing opens a listbox of the closest registry rows
+(`suggest.ts`: exact, then prefix, then substring, then the typed pieces in
+order, shorter id first), each with its chip and provider; arrows and Enter
+pick, Escape closes, a click picks, and a pick fills the id and runs the
+check. The empty box on focus lists the page's example ids. A raw query with
+no row offers the three closest under the "not in the registry" line. The
+list has no motion: it opens on every keystroke.
 
 **Countdown (`Countdown`, `live.tsx`).** The page's one moving number: the
 nearest firm retirement date's chip ticks `23d 07:14:02` in the chip's own
