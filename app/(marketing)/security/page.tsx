@@ -108,9 +108,11 @@ export default function SecurityPage() {
           <p className="mt-3 max-w-xl leading-relaxed text-ink-secondary">
             We hold an email address only if you typed it: into{" "}
             <code className="font-mono text-[0.9em] text-ink">notify</code> in{" "}
-            <code className="font-mono text-[0.9em] text-ink">.github/aidep.json</code>, or the
-            waitlist form. It gets one confirmation mail with a link and nothing else until the link
-            is clicked. After that, plain text through Resend: a{" "}
+            <code className="font-mono text-[0.9em] text-ink">.github/aidep.json</code>, the
+            waitlist form, or the upgrade form on /pricing (that one only reaches us, so we can
+            reply). A notify or waitlist address gets one confirmation mail with a link, for that
+            repo or for the waitlist, and nothing else until the link is clicked. After that, plain
+            text through Resend: a{" "}
             <code className="font-mono text-[0.9em] text-ink">notify</code> address gets a digest
             when a scan finds a new exposure or a retirement is inside 30 days; a waitlist address
             gets one mail per retirement date inside 14 days. We never read an address from GitHub;

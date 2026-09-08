@@ -74,9 +74,10 @@ registry row id. Nothing in our database can reconstruct your code.
 **We email only addresses you typed.** The `notify` list in `.github/aidep.json`
 gets a plain-text digest when a scan finds a new exposure or a retirement is inside
 30 days; the waitlist form gets one mail per retirement date inside 14 days. Both
-go through Resend. Before any of that, the address gets exactly one confirmation
-mail with a link; nothing else is sent until it is clicked, because the person who
-typed an address is not always the person who owns it. We never read an email
+go through Resend. Before any of that, the address gets one confirmation mail with
+a link, per repo that names it (one for the waitlist); nothing else is sent until
+it is clicked, because the person who typed an address is not always the person
+who owns it, and a click for one repo consents to that repo only. We never read an email
 address from GitHub, because that would be a fourth permission. Remove the address
 and the mail stops.
 
