@@ -52,6 +52,7 @@ Stable handles in this app:
 | upgrade, `/pricing` | textbox "Email"; button "Upgrade"; done text "Thanks. We reply by hand, usually the same day." |
 | header and footer | links "register", "security", "handbook", "roadmap", "pricing", "dashboard"; "install" goes to `/#waitlist` while `NEXT_PUBLIC_GITHUB_APP_SLUG` is unset locally; the theme button's name starts "Theme:" |
 | dashboard | heading "Repositories" or "Nothing to watch yet"; button "Create migration PR"; button "Sign out" |
+| confirm and stop links, `/api/notify/confirm` and `/api/notify/stop` | button "Confirm this address"; button "Stop all mail to this address"; `features/mail-links.md` mints the URLs, nothing on the site links to them |
 
 Keyboard on the lookup: `/` anywhere outside a field focuses it; ArrowDown and ArrowUp walk the list; Enter with a highlighted option picks it, Enter without one submits what you typed; Escape closes the list.
 
@@ -70,8 +71,10 @@ Proof standards. Drive the real path (the box, the form, the command), never `sq
 
     bash .claude/skills/verify-aidep/verify.sh down
     bash .claude/skills/verify-aidep/verify.sh sql "delete from interest where email like 'verify-%@example.com'"
+    bash .claude/skills/verify-aidep/verify.sh sql "delete from confirmed_addresses where email like 'verify-%@example.com'"
+    bash .claude/skills/verify-aidep/verify.sh sql "delete from suppressed_addresses where email like 'verify-%@example.com'"
 
-`down` stops the pid recorded for the port and its `next-server` child (by parent pid, never by name), waits for exit, and removes the run record. Artifacts stay. The `sql` line removes the rows this skill's recipes write; it matches nothing else. Close the browser page with `browser_close`. Run `down` after a failed attempt too, so a broken run does not strand port 3100.
+`down` stops the pid recorded for the port and its `next-server` child (by parent pid, never by name), waits for exit, and removes the run record. Artifacts stay. The `sql` lines remove the rows this skill's recipes write; they match nothing else. Close the browser page with `browser_close`. Run `down` after a failed attempt too, so a broken run does not strand port 3100.
 
 ## Helpers
 
@@ -86,3 +89,4 @@ Gotchas for the agent:
 - `Scan date` in CLI output and `alive` in the API are computed in UTC, so after 5pm Pacific they read as tomorrow.
 - Every page logs one console error outside Vercel: `/_vercel/insights/script.js` 404 from `@vercel/analytics`. Expected locally; do not count it as a page error.
 - The GitHub App credentials, `CRON_SECRET`, and `SESSION_SECRET` are empty in `.env.local` as of 2026-09-06. The site, the register, the forms, the CLI, and the public API do not need them; `/api/auth/login` answers 500 and the bearer routes answer 401 until they are set, and the recipes say so where it matters.
+- `MAIL_SECRET` is set in `.env.local` (a dev value, since 2026-09-08) and `next start` reads that file, so the confirm and stop links can be minted and driven here. Empty, both routes answer 500.

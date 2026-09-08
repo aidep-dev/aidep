@@ -8,7 +8,7 @@ The maintained source for verifying aidep's user-facing behavior. Read this inde
 - `$ART` is `$(bash .claude/skills/verify-aidep/verify.sh art)`, the absolute artifacts dir for this run, and `$RUN` is its basename.
 - Never drive `http://localhost:3000`; that is Ricardo's dev server.
 - The browser is the Playwright MCP's own profile: signed in to nothing, theme "system", no stored state.
-- Every address you type is `verify-$RUN@example.com` or `verify-$RUN-<step>@example.com`; cleanup deletes `interest` rows matching `verify-%@example.com`.
+- Every address you type is `verify-$RUN@example.com` or `verify-$RUN-<step>@example.com`; cleanup deletes the `interest`, `confirmed_addresses`, and `suppressed_addresses` rows matching `verify-%@example.com`.
 - All commands run from the repo root.
 
 ## Driving conventions
@@ -40,5 +40,6 @@ Each feature file has an H1, one paragraph on the user-visible behavior, then ex
 - [CLI scan](./cli-scan.md): `npm run scan` on the fixtures, exit codes, the published `cli/dist` shape.
 - [Registry API](./registry-api.md): `/api/registry`, one-id lookups, the schema, `llms.txt`, the `/replacements` redirect, the funnel, and the opt-in key probe.
 - [Dashboard](./dashboard.md): what an unauthenticated visitor gets, the auth-denied banner, and why the signed-in path needs Ricardo's own instance.
+- [Confirm and stop links](./mail-links.md): the two links every mail carries, minted locally; the GET pages, the POST that consents to one scope, the one-click stop, and the 400s.
 
-Not mapped yet: the static pages (`/security`, `/handbook`, `/roadmap`), the theme toggle, `/sitemap.xml`, `/robots.txt`, the OpenGraph image, and the whole GitHub App path (webhook, onboarding PR, migration PR, cron drain, notify mail), which `npm test` covers with a fake GitHub.
+Not mapped yet: the static pages (`/security`, `/handbook`, `/roadmap`), the theme toggle, `/sitemap.xml`, `/robots.txt`, the OpenGraph image, and the whole GitHub App path (webhook, onboarding PR, migration PR, cron drain, the digest and confirmation sends), which `npm test` covers with a fake GitHub.
