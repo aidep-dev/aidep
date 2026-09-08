@@ -5,6 +5,7 @@ import postgres from "postgres";
 import * as tar from "tar";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as cronGet } from "../app/api/cron/drain/route.ts";
+import { refreshExposure } from "../src/exposure.ts";
 import { loadRegistry } from "../src/registry.ts";
 import { AidepConfigSchema, DEFAULT_CONFIG } from "../src/config.ts";
 import {
@@ -66,6 +67,13 @@ vi.mock("../src/github/octokit.ts", () => ({
       }
     },
   })),
+}));
+
+// The cron route refreshes /dead's counts before it drains; only the failure
+// path is exercised here, so the walk itself never runs.
+vi.mock("../src/exposure.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/exposure.ts")>()),
+  refreshExposure: vi.fn(),
 }));
 
 // id range owned by this file: 40xx (it also owns the aidep_integration
@@ -307,6 +315,26 @@ describe("cron drain route", () => {
     // hash settled: the next call is quiet again
     const res2 = await get("Bearer cron-secret-40");
     expect(await res2.json()).toEqual({ enqueued: 0, registryTriggered: 0, exposure: { updated: 0, skipped: 0 }, mailed: { exposure: 0, waitlist: 0, confirmations: 0 }, ran: 0, failed: 0 });
+  });
+
+  it("a failing exposure refresh is logged and the queue still drains", async () => {
+    await upsertInstallation(INST, "acme");
+    await upsertRepo({ id: REPO_STALE, installationId: INST, owner: "acme", name: "stale", defaultBranch: "main" });
+    await markOnboarded(REPO_STALE, DEFAULT_CONFIG);
+    await sql`insert into scans (repo_id, status, finished_at) values (${REPO_STALE}, 'done', now() - interval '25 hours')`;
+    await sql`delete from exposure_counts`; // never counted, so the refresh is due
+    process.env.GITHUB_SEARCH_TOKEN = "ghs-test";
+    vi.mocked(refreshExposure).mockRejectedValueOnce(new Error("registry source down"));
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const res = await get("Bearer cron-secret-40");
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ enqueued: 1, exposure: { updated: 0, skipped: 0 }, ran: 1, failed: 0 });
+      expect(error).toHaveBeenCalledWith("exposure refresh failed:", expect.anything());
+    } finally {
+      delete process.env.GITHUB_SEARCH_TOKEN;
+      error.mockRestore();
+    }
   });
 
   it("does not double-enqueue when a scan job is already queued", async () => {

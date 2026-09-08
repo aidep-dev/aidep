@@ -44,3 +44,20 @@ export async function fetchViewer(
   const data = (await res.json()) as { login: string; id: number };
   return { login: data.login, id: data.id };
 }
+
+/** Revoke a user token at GitHub (sign-out). Basic auth is the App's OAuth client id and secret. */
+export async function revokeToken(token: string, fetchImpl: typeof fetch = fetch): Promise<void> {
+  const clientId = process.env.GITHUB_CLIENT_ID;
+  const basic = Buffer.from(`${clientId}:${process.env.GITHUB_CLIENT_SECRET}`).toString("base64");
+  const res = await fetchImpl(`https://api.github.com/applications/${clientId}/token`, {
+    method: "DELETE",
+    headers: {
+      authorization: `Basic ${basic}`,
+      accept: "application/vnd.github+json",
+      "x-github-api-version": "2022-11-28",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ access_token: token }),
+  });
+  if (!res.ok) throw new Error(`token revoke: HTTP ${res.status}`);
+}

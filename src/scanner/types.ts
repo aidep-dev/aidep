@@ -30,4 +30,6 @@ export interface ScanResult {
   findings: Finding[];
   filesScanned: number;
   filesSkipped: number;
+  /** the archive was cut at the ingest file cap, so findings are a floor */
+  truncated?: boolean;
 }

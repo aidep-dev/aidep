@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { notFound, redirect } from "next/navigation";
-import { getUserInstallationIds } from "../../../../../src/auth/session.ts";
+import { notFound } from "next/navigation";
+import { getUserInstallationRepoIds } from "../../../../../src/auth/session.ts";
 import { getRepoByFullName } from "../../../../../src/db/index.ts";
 import { loadRegistry, type RegistryRow } from "../../../../../src/registry.ts";
 import {
@@ -9,7 +9,7 @@ import {
   repoFindings,
   type EventGroup,
 } from "../../../../../src/dashboard/queries.ts";
-import { requireSession } from "../../../auth.ts";
+import { githubFailure, requireSession } from "../../../auth.ts";
 import CreatePrButton from "../../CreatePrButton.tsx";
 
 const WORKFLOW_PREFIX = ".github/workflows/";
@@ -46,14 +46,20 @@ export default async function RepoPage({
   const session = await requireSession();
   const row = await getRepoByFullName(owner, repo);
   if (!row) notFound();
-  let installationIds: number[];
+  let repoIds: number[];
   try {
-    installationIds = await getUserInstallationIds(session.token);
-  } catch {
-    redirect("/api/auth/login");
+    // bigint columns come back as strings at runtime; compare numerically
+    repoIds = await getUserInstallationRepoIds(session.token, Number(row.installation_id));
+  } catch (e) {
+    return (
+      <section>
+        <h1 className="text-3xl">{`${owner}/${repo}`}</h1>
+        <p className="mt-3 text-sm text-dead">{githubFailure(e)}</p>
+      </section>
+    );
   }
-  // bigint columns come back as strings at runtime; compare numerically
-  if (!installationIds.includes(Number(row.installation_id))) notFound();
+  // the install may span repos this user cannot read on GitHub; those are not theirs to see
+  if (!repoIds.includes(Number(row.id))) notFound();
 
   const [findings, registry] = await Promise.all([
     repoFindings(Number(row.id)),

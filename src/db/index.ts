@@ -4,7 +4,14 @@ import type { AidepConfig } from "../config.ts";
 
 export const sql = postgres(
   process.env.DATABASE_URL ?? "postgres://postgres@localhost:5433/aidep",
-  { onnotice: () => {} },
+  {
+    onnotice: () => {},
+    // one warm serverless instance otherwise holds 10 connections open forever
+    max: 5,
+    idle_timeout: 20,
+    connect_timeout: 10,
+    connection: { application_name: "aidep", statement_timeout: 30_000 },
+  },
 );
 
 // ---- installations ----

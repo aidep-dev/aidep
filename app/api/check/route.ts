@@ -1,12 +1,15 @@
 import { bearerMatches } from "../../../src/auth/access.ts";
 import { anthropicLlm } from "../../../src/evalgen/extract.ts";
+import { mailConfigured } from "../../../src/notify.ts";
 
 /**
  * Proves the two write-only keys work from inside the deployment, where
  * they can be read. Vercel marks them Sensitive, so `vercel env pull` returns
  * them blank and nothing outside the app can tell a bad key from a good one:
  * a dead ANTHROPIC_API_KEY silently skips every eval pack, and a dead
- * GITHUB_SEARCH_TOKEN leaves /dead frozen at its last count.
+ * GITHUB_SEARCH_TOKEN leaves /dead frozen at its last count. Mail is a
+ * config check only: with RESEND_API_KEY or MAIL_FROM unset every sender
+ * returns zeros without a log line.
  *
  *   curl -H "authorization: Bearer $CRON_SECRET" https://aidep.dev/api/check
  */
@@ -37,11 +40,17 @@ async function probeSearch(): Promise<Probe> {
   return { ok: true, detail: `${data.total_count} files match` };
 }
 
+function probeMail(): Probe {
+  return mailConfigured()
+    ? { ok: true, detail: "RESEND_API_KEY and MAIL_FROM set" }
+    : { ok: false, error: "RESEND_API_KEY or MAIL_FROM is not set" };
+}
+
 export async function GET(req: Request): Promise<Response> {
   const secret = process.env.CRON_SECRET;
   if (!secret || !bearerMatches(req.headers.get("authorization"), secret)) {
     return new Response("unauthorized", { status: 401 });
   }
   const [anthropic, search] = await Promise.all([probeAnthropic(), probeSearch()]);
-  return Response.json({ anthropic, search });
+  return Response.json({ anthropic, search, mail: probeMail() });
 }

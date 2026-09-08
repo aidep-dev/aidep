@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { getRepo, type RepoRow } from "../db/index.ts";
-import { SESSION_COOKIE, getUserInstallationIds, openSession, type Session } from "./session.ts";
+import { SESSION_COOKIE, getUserInstallationRepoIds, openSession, type Session } from "./session.ts";
 
 export const STATE_COOKIE = "aidep_oauth_state";
 
@@ -62,9 +62,9 @@ export async function requireRepoAccess(
   if (!Number.isInteger(repoId) || repoId <= 0) return { repo: null, allowed: false };
   const repo = await getRepo(repoId);
   if (!repo) return { repo: null, allowed: false };
-  // Authorization is answered fresh by GitHub on every request: no cache, so a
-  // revoked installation is denied on the next call, not up to a minute later.
-  const ids = await getUserInstallationIds(session.token);
+  // Authorization is answered fresh by GitHub on every request: no cache, so
+  // access revoked at GitHub is denied on the next call, not up to a minute later.
   // postgres returns bigint columns as strings; the GitHub ids are numbers
-  return { repo, allowed: ids.includes(Number(repo.installation_id)) };
+  const ids = await getUserInstallationRepoIds(session.token, Number(repo.installation_id));
+  return { repo, allowed: ids.includes(Number(repo.id)) };
 }

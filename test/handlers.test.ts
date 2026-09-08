@@ -151,6 +151,21 @@ describe("installation lifecycle", () => {
     await receive("installation", { action: "deleted", installation: inst(INST) });
     expect(await queuedJobs("scan", REPO_A)).toHaveLength(0);
   });
+
+  it("removed also purges the removed repo's queued jobs, leaving its siblings'", async () => {
+    await seedRepo(REPO_A);
+    await seedRepo(REPO_B);
+    await enqueue("scan", { repoId: REPO_A });
+    await enqueue("scan", { repoId: REPO_B });
+    await receive("installation_repositories", {
+      action: "removed",
+      installation: inst(INST),
+      repositories_added: [],
+      repositories_removed: [{ id: REPO_A, name: "one", full_name: "acme/one" }],
+    });
+    expect(await queuedJobs("scan", REPO_A)).toHaveLength(0);
+    expect(await queuedJobs("scan", REPO_B)).toHaveLength(1);
+  });
 });
 
 describe("push", () => {
@@ -176,6 +191,25 @@ describe("push", () => {
     await push(REPO_A, "refs/heads/main", [".github/aidep.json"]);
     const jobs = await queuedJobs("scan", REPO_A);
     expect(jobs[0].payload).toMatchObject({ rereadConfig: true });
+  });
+
+  it("flags rereadConfig when the push removes .github/aidep.json", async () => {
+    await seedRepo(REPO_A, { onboarded: true });
+    await receive("push", {
+      ref: "refs/heads/main",
+      repository: { id: REPO_A },
+      installation: inst(INST),
+      commits: [{ added: [], modified: [], removed: [".github/aidep.json"] }],
+    });
+    const jobs = await queuedJobs("scan", REPO_A);
+    expect(jobs[0].payload).toMatchObject({ rereadConfig: true });
+  });
+
+  it("treats a repo on a suspended installation as absent", async () => {
+    await seedRepo(REPO_A, { onboarded: true });
+    await setInstallationSuspended(INST, true);
+    await push(REPO_A, "refs/heads/main");
+    expect(await queuedJobs("scan", REPO_A)).toHaveLength(0);
   });
 
   it("a config-touching push while a scan is queued still enqueues a follow-up", async () => {
@@ -242,6 +276,15 @@ describe("pull_request.closed (onboarding)", () => {
     await seedRepo(REPO_A);
     await setOnboardingPr(REPO_A, 7);
     await closed(REPO_A, 7, false);
+    expect((await getRepo(REPO_A))?.onboarded_at).toBeNull();
+    expect(requestMock).not.toHaveBeenCalled();
+  });
+
+  it("merged configure PR on a suspended installation is ignored", async () => {
+    await seedRepo(REPO_A);
+    await setOnboardingPr(REPO_A, 7);
+    await setInstallationSuspended(INST, true);
+    await closed(REPO_A, 7, true);
     expect((await getRepo(REPO_A))?.onboarded_at).toBeNull();
     expect(requestMock).not.toHaveBeenCalled();
   });
@@ -414,7 +457,7 @@ describe("webhook route", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 500 (not 401) when a validly signed payload makes a handler throw", async () => {
+  it("returns 500 (not 401) and logs the delivery when a validly signed payload makes a handler throw", async () => {
     // valid signature, but installation.id is not a bigint -> the upsert throws
     const body = JSON.stringify({
       action: "created",
@@ -422,7 +465,14 @@ describe("webhook route", () => {
       repositories: [],
     });
     const { sign } = await import("@octokit/webhooks-methods");
-    const res = await post(body, await sign("testsecret", body));
-    expect(res.status).toBe(500);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const res = await post(body, await sign("testsecret", body));
+      expect(res.status).toBe(500);
+      // GitHub does not redeliver a 500 by itself; the log line is the only trace
+      expect(error).toHaveBeenCalledWith("webhook installation route-1 failed:", expect.anything());
+    } finally {
+      error.mockRestore();
+    }
   });
 });

@@ -2,6 +2,8 @@ name: ci
 on:
   push:
   pull_request:
+permissions:
+  contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -36,6 +38,10 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+      # the production build: /dead prerenders from the exposure table, so
+      # the schema goes in first and a broken prerender fails here, not on Vercel
+      - run: node src/db/migrate.ts
+      - run: npm run build
       # the published CLI: build it and run it the way a stranger would, with
       # no sibling registry checkout and no REGISTRY_SOURCE
       - run: npm run build:cli

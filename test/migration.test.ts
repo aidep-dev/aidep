@@ -94,6 +94,7 @@ const REPO_INGEST = 5104;
 const REPO_RERUN = 5105;
 const REPO_NO_KEY = 5106;
 const REPO_URGENT = 5107;
+const REPO_NOT_ONBOARDED = 5108;
 
 const ASSISTANTS = "openai:endpoint:assistants-api";
 const GPT5 = "openai:model:gpt-5-2025-08-07";
@@ -332,6 +333,19 @@ describe("create_migration_pr", () => {
 
     await job("create_migration_pr", { repoId: REPO_URGENT, registryId: ASSISTANTS });
     expect(reqs("POST /repos/{owner}/{repo}/pulls")).toHaveLength(1);
+  });
+
+  it("opens nothing while the onboarding PR is unmerged, findings or not", async () => {
+    // the onboarding scan already recorded findings; the job is the last gate
+    await upsertInstallation(INST, "acme");
+    await upsertRepo({ id: REPO_NOT_ONBOARDED, installationId: INST, owner: "acme", name: "r5108", defaultBranch: "main" });
+    await seedFinding(REPO_NOT_ONBOARDED, ASSISTANTS, "src/assistant.js");
+    state.repoFiles = { "src/assistant.js": JS_ASSISTANT };
+
+    await job("create_migration_pr", { repoId: REPO_NOT_ONBOARDED, registryId: ASSISTANTS });
+
+    expect(reqs("POST /repos/{owner}/{repo}/pulls")).toHaveLength(0);
+    expect(state.puts).toHaveLength(0);
   });
 });
 

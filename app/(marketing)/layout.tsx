@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Wordmark } from "../mark.tsx";
 import { ThemeToggle } from "../theme.tsx";
+import { AuthNotice } from "./auth-notice.tsx";
 import { NavLink } from "./nav-link.tsx";
 import { installUrl } from "./site.ts";
 
@@ -39,6 +40,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
         </div>
       </header>
 
+      <AuthNotice />
       <main className="flex-1">{children}</main>
 
       <footer className="border-t border-rule">

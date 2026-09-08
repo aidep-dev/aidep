@@ -30,6 +30,7 @@ export interface Mail {
   to: string;
   subject: string;
   text: string;
+  headers?: Record<string, string>;
 }
 
 export type Mailer = (mail: Mail) => Promise<void>;
@@ -52,13 +53,15 @@ export function resendMailer(): Mailer {
   }
   const client = new Resend(key);
   return async (mail) => {
-    const { error } = await client.emails.send({ from, to: mail.to, subject: mail.subject, text: mail.text });
+    const { error } = await client.emails.send({ from, to: mail.to, subject: mail.subject, text: mail.text, headers: mail.headers });
     if (error) throw new Error(`resend: ${error.message}`);
   };
 }
 
-const WAITLIST_WINDOW_DAYS = 14;
+export const WAITLIST_WINDOW_DAYS = 14;
 const APP_URL = () => process.env.APP_URL ?? "https://aidep.example";
+/** A flood of addresses costs cron runs, not one run's whole Resend quota. */
+const MAX_CONFIRMATIONS_PER_RUN = 25;
 
 /** Stateless confirmation token: HMAC of the lowercased address under the
  * session secret, so the link needs no row and cannot be forged. */
@@ -92,13 +95,20 @@ async function confirmedSet(emails: string[]): Promise<Set<string>> {
   return new Set(rows.map((r) => r.email));
 }
 
-/** One-click stop. Same HMAC as the confirm link: holding the link proves
- * control of the mailbox, and the row outranks confirmation forever. */
+/** The stop link: GET is a page with one button, POST suppresses. Same HMAC
+ * as the confirm link: holding the link proves control of the mailbox, and
+ * the row outranks confirmation forever. */
 export function stopUrl(email: string): string {
   const u = new URL("/api/notify/stop", APP_URL());
   u.searchParams.set("e", email.toLowerCase());
   u.searchParams.set("t", confirmToken(email));
   return u.toString();
+}
+
+/** RFC 8058: the mail client shows its own stop button and POSTs to the
+ * stop URL with no page in between. */
+function stopHeaders(email: string): Record<string, string> {
+  return { "List-Unsubscribe": `<${stopUrl(email)}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" };
 }
 
 export async function suppressAddress(email: string): Promise<void> {
@@ -121,8 +131,10 @@ function confirmMail(to: string, why: string): Mail {
       "",
       confirmUrl(to),
       "",
-      "If it was not you, do nothing. This is the only mail this address gets until the link is clicked.",
+      "If it was not you, do nothing: this is the only mail this address gets until the link is clicked.",
+      `Never want aidep mail at this address? Stop it for good with one button here: ${stopUrl(to)}`,
     ].join("\n"),
+    headers: stopHeaders(to),
   };
 }
 
@@ -225,11 +237,11 @@ function exposureMail(
     "",
     `Details and the migration PR button: ${APP_URL()}/dashboard/${full}`,
     "",
-    `You get this because your address is in .github/aidep.json on ${full}. Remove it there, or stop all aidep mail to this address with one click: ${stopUrl(to)}`,
+    `You get this because your address is in .github/aidep.json on ${full}. Remove it there, or stop all aidep mail to this address with one button here: ${stopUrl(to)}`,
     "",
     "aidep sends nothing else and never opens a PR you did not ask for.",
   ].join("\n");
-  return { to, subject, text };
+  return { to, subject, text, headers: stopHeaders(to) };
 }
 
 /**
@@ -271,7 +283,7 @@ export async function sendDueNotifications(opts: {
     for (const to of repo.notify.map((a) => a.toLowerCase())) {
       if (suppressed.has(to)) continue;
       if (!confirmed.has(to)) {
-        if ((await alreadySent("confirm", to, ["confirm"])).size === 0) {
+        if (confirmations < MAX_CONFIRMATIONS_PER_RUN && (await alreadySent("confirm", to, ["confirm"])).size === 0) {
           await mailer(confirmMail(to, `put this address in .github/aidep.json on ${repo.owner}/${repo.name}`));
           await record("confirm", to, ["confirm"]);
           confirmations++;
@@ -311,7 +323,7 @@ export async function sendDueNotifications(opts: {
   for (const email of emails) {
     if (suppressedWaiters.has(email)) continue;
     if (!confirmedWaiters.has(email)) {
-      if ((await alreadySent("confirm", email, ["confirm"])).size === 0) {
+      if (confirmations < MAX_CONFIRMATIONS_PER_RUN && (await alreadySent("confirm", email, ["confirm"])).size === 0) {
         await mailer(confirmMail(email, "left this address on aidep.dev asking to hear when a retirement date gets close"));
         await record("confirm", email, ["confirm"]);
         confirmations++;
@@ -332,13 +344,17 @@ export async function sendDueNotifications(opts: {
           "",
           `Check your code now: npx aidep . needs no account. Or install the GitHub App: ${APP_URL()}`,
           "",
-          `You asked for this on aidep.dev. It goes out once per retirement date and nothing else. Stop with one click: ${stopUrl(email)}`,
+          `You asked for this on aidep.dev. It goes out once per retirement date and nothing else. Stop with one button here: ${stopUrl(email)}`,
         ].join("\n"),
+        headers: stopHeaders(email),
       });
       await record("waitlist", email, [dies]);
       waitlist++;
     }
   }
+
+  // intents that landed after this hour's alert went out
+  await upgradeAlert(mailer);
 
   return { exposure, waitlist, confirmations };
 }
@@ -346,14 +362,57 @@ export async function sendDueNotifications(opts: {
 /**
  * One mail to the operator's own inbox (the MAIL_FROM address, which routes
  * to a real mailbox). Used for signals that promise a same-day human reply,
- * so they cannot depend on someone remembering to run SQL. No-op while mail
- * is unconfigured; callers treat failure as non-fatal.
+ * so they cannot depend on someone remembering to run SQL. The caller
+ * decides whether mail is wired; the route treats failure as non-fatal.
  */
-export async function operatorAlert(subject: string, text: string): Promise<void> {
-  if (!mailConfigured()) return;
-  const from = process.env.MAIL_FROM as string;
+async function operatorAlert(subject: string, text: string, mailer: Mailer): Promise<void> {
+  const from = process.env.MAIL_FROM ?? "";
   const to = /<([^>]+)>/.exec(from)?.[1] ?? from;
-  await resendMailer()({ to, subject, text });
+  await mailer({ to, subject, text });
+}
+
+/**
+ * Upgrade intents from /pricing, at most one mail an hour: whoever claims the
+ * hour's ledger row reports every intent since the previous mail, the rest
+ * wait for the next claim (the next intent, or the next cron drain once the
+ * hour has turned). The row is claimed before the send so two requests in
+ * the same second cannot both mail; that is the flood this exists for, and
+ * a lost hour costs nothing that /api/funnel does not still show.
+ */
+export async function upgradeAlert(mailer?: Mailer): Promise<boolean> {
+  if (mailer === undefined && !mailConfigured()) return false;
+  // timestamps stay text end to end (the ::text cast keeps postgres.js from
+  // serializing the parameter through a JS Date): a Date keeps milliseconds,
+  // Postgres keeps microseconds, and a rounded watermark re-reports intents
+  const [prev] = await sql<{ at: string | null }[]>`
+    select max(sent_at)::text as at from notifications where kind = 'operator' and recipient = 'upgrade'`;
+  const since = prev.at ?? "epoch";
+  const fresh = await sql<{ email: string | null; created_at: string }[]>`
+    select email, created_at::text as created_at from interest
+    where source = 'pricing-upgrade' and created_at > ${since}::text::timestamptz
+    order by created_at`;
+  if (fresh.length === 0) return false;
+  // sent_at is the newest intent reported, not the clock: a row that lands
+  // between the select above and this insert is picked up by the next claim
+  const claimed = await sql`
+    insert into notifications (kind, recipient, subject_key, sent_at)
+    values ('operator', 'upgrade', ${new Date().toISOString().slice(0, 13)}, ${fresh[fresh.length - 1].created_at}::text::timestamptz)
+    on conflict do nothing
+    returning 1`;
+  if (claimed.length === 0) return false;
+  const n = fresh.length;
+  await operatorAlert(
+    `aidep: ${n === 1 ? "1 upgrade intent" : `${n} upgrade intents`}`,
+    [
+      `${n === 1 ? "Someone" : `${n} people`} clicked upgrade on /pricing since ${prev.at ?? "launch"}.`,
+      "",
+      ...fresh.map((r) => r.email ?? "(no email left)"),
+      "",
+      "Reply today; the page said we would. Next mail like this in an hour at the earliest.",
+    ].join("\n"),
+    mailer ?? resendMailer(),
+  );
+  return true;
 }
 
 /** Exposure mail covers events inside this window with an urgent subject. */

@@ -31,7 +31,14 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** An id with no separator at all (ada, curie, o1): bare, it is as likely an
+ * identifier or prose as a model string, so only its quoted form is rewritten. */
+function isWordLikeId(id: string): boolean {
+  return /^[a-z0-9]+$/i.test(id);
+}
+
 function idRegex(id: string): RegExp {
+  if (isWordLikeId(id)) return new RegExp(`(?<=(['"]))${escapeRegExp(id)}(?=\\1)`, "g");
   const left = /^[A-Za-z0-9._-]/.test(id) ? TX_BOUNDARY_LEFT : "";
   const right = /[A-Za-z0-9._-]$/.test(id) ? TX_BOUNDARY_RIGHT : "";
   return new RegExp(left + escapeRegExp(id) + right, "g");
@@ -56,16 +63,22 @@ function untouchedFile(f: EventFileInput): FileTransform {
 
 /**
  * The smallest balanced `(...)` region that contains `target` (0-based line),
- * as [openLine, closeLine] inclusive, or null when the target line has no
- * still-open paren at its end (e.g. a fully single-line call).
+ * as [openLine, closeLine] inclusive. Null when the target line has no
+ * still-open paren at its end (a fully single-line call); "unbalanced" when
+ * one is open there but never closes, so the call's extent is unknown.
+ * Callers pass comment-stripped lines. A triple-quoted string or a template
+ * literal keeps its quote state across lines, so a paren inside a prompt is
+ * never counted; a single ' or " that is still open at a line end is a stray
+ * apostrophe and is dropped, so it cannot swallow the rest of the file.
  */
-function enclosingParenRange(lines: string[], target: number): [number, number] | null {
+function enclosingParenRange(lines: string[], target: number): [number, number] | null | "unbalanced" {
   const openStack: number[] = []; // line of each still-open "("
-  let quote: string | null = null;
   let capturedDepth: number | null = null;
   let capturedOpen: number | null = null;
+  let quote: string | null = null;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    if (quote === '"' || quote === "'") quote = null;
     for (let j = 0; j < line.length; j++) {
       const ch = line[j];
       if (quote !== null) {
@@ -73,11 +86,16 @@ function enclosingParenRange(lines: string[], target: number): [number, number] 
           j++;
           continue;
         }
-        if (ch === quote) quote = null;
+        if (line.startsWith(quote, j)) {
+          j += quote.length - 1;
+          quote = null;
+        }
         continue;
       }
       if (ch === '"' || ch === "'" || ch === "`") {
-        quote = ch;
+        const triple = line.slice(j, j + 3);
+        quote = triple === '"""' || triple === "'''" ? triple : ch;
+        j += quote.length - 1;
         continue;
       }
       if (ch === "(") {
@@ -98,7 +116,7 @@ function enclosingParenRange(lines: string[], target: number): [number, number] 
       capturedOpen = openStack[openStack.length - 1];
     }
   }
-  return null;
+  return capturedDepth === null ? null : "unbalanced";
 }
 
 /** Strip line comments (`#`, `//`) so a commented model mention never reads as
@@ -184,10 +202,21 @@ function modelEvent(event: RegistryRow, files: EventFileInput[]): EventTransform
       if (!idRegex(id).test(f.content)) continue;
       anyHit = true;
       if (newModel === null) continue;
+      if (isWordLikeId(id)) {
+        const bareRegex = new RegExp(TX_BOUNDARY_LEFT + escapeRegExp(id) + TX_BOUNDARY_RIGHT, "g");
+        const bare = (f.content.match(bareRegex) ?? []).length - (f.content.match(idRegex(id)) ?? []).length;
+        if (bare > 0) {
+          ft.checklist.push({
+            id: "model-bare-id",
+            text: `${mdEscape(id)} also appears unquoted ${bare} time${bare === 1 ? "" : "s"} in ${mdEscape(f.path)}; left as is, since bare it may be an identifier or prose. Check each by hand (replacement: ${mdEscape(newModel)}).`,
+          });
+        }
+      }
       let idSwapped = false;
       for (let i = 0; i < lines.length; i++) {
         if (!idRegex(id).test(lines[i])) continue;
-        lines[i] = lines[i].replace(idRegex(id), newModel);
+        // replacer function: a `$` in the registry's replacement id is literal
+        lines[i] = lines[i].replace(idRegex(id), () => newModel);
         swappedLines.add(i);
         idSwapped = true;
       }
@@ -205,11 +234,18 @@ function modelEvent(event: RegistryRow, files: EventFileInput[]): EventTransform
       // 400 - but only for THIS call, so scope removal to the swapped call's
       // enclosing paren region (never file-wide onto other models' calls)
       const allowed = new Set<number>();
+      const codeLines = stripLineComments(content).split("\n");
+      let unbalanced = false;
       for (const ln of swappedLines) {
-        const region = enclosingParenRange(lines, ln) ?? [ln, ln];
-        for (let k = region[0]; k <= region[1]; k++) allowed.add(k);
+        const region = enclosingParenRange(codeLines, ln);
+        if (region === "unbalanced") unbalanced = true;
+        const [from, to] = Array.isArray(region) ? region : [ln, ln];
+        for (let k = from; k <= to; k++) allowed.add(k);
       }
       const removal = removeSamplingParams(content, SAMPLING_PARAMS, allowed);
+      // a call whose end was not found may carry params on lines the scoped
+      // removal never saw; a file-wide dry run says whether any exist
+      const unseen = unbalanced ? removeSamplingParams(content, SAMPLING_PARAMS) : null;
       if (removal.removed.length > 0) {
         content = removal.content;
         const dropped = [...new Set(removal.removed.map((r) => r.param))];
@@ -225,6 +261,12 @@ function modelEvent(event: RegistryRow, files: EventFileInput[]): EventTransform
         ft.checklist.push({
           id: "param-manual",
           text: `${b.param} at ${mdEscape(f.path)}:${b.line} has a computed or multi-line value; remove it manually, it will 400 on ${newModel}.`,
+        });
+      }
+      if (unseen !== null && unseen.removed.length + unseen.blocked.length > removal.removed.length + removal.blocked.length) {
+        ft.checklist.push({
+          id: "param-manual",
+          text: `aidep could not find the end of the swapped call in ${mdEscape(f.path)}; check it for temperature/top_p/top_k by hand, non-default values return 400 on ${newModel}.`,
         });
       }
     }

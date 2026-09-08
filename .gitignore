@@ -47,3 +47,7 @@ next-env.d.ts
 
 # playwright MCP debug artifacts
 .playwright-mcp/
+
+# verify-aidep: run records and proof artifacts
+/.claude/skills/verify-aidep/.run/
+/.claude/skills/verify-aidep/artifacts/

@@ -122,7 +122,25 @@ const O1_PRO_ROW: RegistryRow = {
   platform: "first-party",
 };
 
-const ALL_ROWS = [ASSISTANTS_ROW, SONNET_ROW, OPUS41_ROW, PARAMS_ROW, GPT4_TURBO_ROW, O1_PRO_ROW];
+// a dictionary-word id: the swap only touches it inside matched quotes
+const ADA_ROW: RegistryRow = {
+  id: "openai:model:ada",
+  provider: "openai",
+  surface: "model",
+  api_ids: ["ada"],
+  status: "retired",
+  announced: "2023-07-06",
+  dies: "2024-01-04",
+  dies_is_earliest_possible: false,
+  replacement_id: "babbage-002",
+  replacement_notes: null,
+  migration_url: null,
+  source_url: "https://developers.openai.com/api/docs/deprecations",
+  verified_at: "2026-08-16",
+  platform: "first-party",
+};
+
+const ALL_ROWS = [ASSISTANTS_ROW, SONNET_ROW, OPUS41_ROW, PARAMS_ROW, GPT4_TURBO_ROW, O1_PRO_ROW, ADA_ROW];
 
 interface Case {
   name: string;
@@ -144,6 +162,7 @@ const CASES: Case[] = [
   { name: "nested-python-dance", event: ASSISTANTS_ROW, input: "input.py", expected: "expected.py", path: "src/nested.py" },
   { name: "python-async-dance", event: ASSISTANTS_ROW, input: "input.py", expected: "expected.py", path: "src/async_flow.py" },
   { name: "model-swap-param-scope", event: OPUS41_ROW, input: "input.py", expected: "expected.py", path: "src/replies.py" },
+  { name: "model-swap-dictionary-id", event: ADA_ROW, input: "input.py", expected: "expected.py", path: "src/embed.py" },
 ];
 
 function run(c: Case): { input: string; result: EventTransformResult } {
@@ -579,5 +598,181 @@ describe("generated scripts keep config OpenAI's recipe would drop", () => {
     expect(gen).toBeDefined();
     expect(gen!.content).toContain("assistant-role image_url");
     expect(gen!.content).toContain('m.role === "assistant"');
+  });
+});
+
+describe("dictionary-word ids rewrite only inside quotes", () => {
+  it("a bare o1 variable is untouched while the quoted pin is swapped", () => {
+    const row: RegistryRow = { ...GPT4_TURBO_ROW, id: "openai:model:o1-2024-12-17", api_ids: ["o1-2024-12-17", "o1"] };
+    const content = 'const [o1, o2] = split(x);\nconst model = "o1";\n';
+    const result = transformForEvent(row, [{ path: "src/a.ts", content }], ALL_ROWS);
+    expect(result.files[0].migrated).toBe('const [o1, o2] = split(x);\nconst model = "gpt-5.6-sol";\n');
+  });
+
+  it("a $ in the replacement id is inserted literally", () => {
+    const row: RegistryRow = { ...GPT4_TURBO_ROW, replacement_id: "gpt-$&" };
+    const result = transformForEvent(row, [{ path: "src/a.ts", content: 'const model = "gpt-4-turbo";\n' }], ALL_ROWS);
+    expect(result.files[0].migrated).toBe('const model = "gpt-$&";\n');
+  });
+});
+
+describe("a $-prefixed variable in the dance", () => {
+  const dance = (tail: string[]) =>
+    [
+      'import OpenAI from "openai";',
+      "const openai = new OpenAI();",
+      "",
+      "export async function ask(threadId, question) {",
+      "  await openai.beta.threads.messages.create(threadId, {",
+      '    role: "user",',
+      "    content: question,",
+      "  });",
+      "  const $run = await openai.beta.threads.runs.createAndPoll(threadId, {",
+      "    assistant_id: process.env.ASSISTANT_ID,",
+      "  });",
+      "  const $msgs = await openai.beta.threads.messages.list(threadId);",
+      ...tail,
+      "}",
+      "",
+    ].join("\n");
+
+  it("is rewritten when only the textbook idiom uses it", () => {
+    const content = dance(["  return $msgs.data[0].content[0].text.value;"]);
+    const out = transformForEvent(ASSISTANTS_ROW, [{ path: "src/ask.js", content }], ALL_ROWS).files[0].migrated;
+    expect(out).toContain("return response.output_text;");
+    expect(out).not.toContain("$msgs");
+  });
+
+  it("degrades to the checklist when it is used beyond the idiom, instead of orphaning it", () => {
+    const content = dance(["  audit($msgs.data.length);", "  return $msgs.data[0].content[0].text.value;"]);
+    const ft = transformForEvent(ASSISTANTS_ROW, [{ path: "src/ask.js", content }], ALL_ROWS).files[0];
+    expect(ft.migrated).toBeNull();
+    expect(ft.checklist.map((c) => c.id)).toContain("assistants-manual-run-loop");
+  });
+});
+
+describe("assistants id literals use the scanner's floor", () => {
+  it("thread_channel and asst_helper are snake_case, not ids; real ids still count", () => {
+    const snake = 'const thread_channel = get("x");\nconst asst_helper = build();\n';
+    const r1 = transformForEvent(ASSISTANTS_ROW, [{ path: "src/a.js", content: snake }], ALL_ROWS);
+    expect(r1.eventChecklist.map((c) => c.id)).not.toContain("assistants-thread-backfill");
+    expect(r1.eventChecklist.map((c) => c.id)).not.toContain("assistants-fetch-and-inline");
+    expect(r1.generatedFiles).toEqual([]);
+    const real = 'const t = "thread_9kQvXcR2mNbF7yT1wZ8pL3dJ";\nconst a = "asst_9kQvXcR2mNbF7yT1wZ8pL3dJ";\n';
+    const r2 = transformForEvent(ASSISTANTS_ROW, [{ path: "src/a.js", content: real }], ALL_ROWS);
+    expect(r2.eventChecklist.map((c) => c.id)).toContain("assistants-thread-backfill");
+    expect(r2.eventChecklist.map((c) => c.id)).toContain("assistants-fetch-and-inline");
+  });
+
+  it("a 1 MB line of uppercase or underscores is checked in bounded time", () => {
+    for (const text of ["A".repeat(1024 * 1024), "_".repeat(1024 * 1024)]) {
+      const t = performance.now();
+      transformForEvent(ASSISTANTS_ROW, [{ path: "src/a.js", content: text }], ALL_ROWS);
+      expect(performance.now() - t).toBeLessThan(2000);
+    }
+  });
+});
+
+describe("sampling params are scoped by the call's real extent", () => {
+  it("an apostrophe in a trailing comment does not hide the next line's temperature", () => {
+    const content = [
+      "message = client.messages.create(",
+      '    model="claude-opus-4-1-20250805",  # don\'t change',
+      "    temperature=0.5,",
+      "    max_tokens=100,",
+      ")",
+      "",
+    ].join("\n");
+    const ft = transformForEvent(OPUS41_ROW, [{ path: "src/x.py", content }], ALL_ROWS).files[0];
+    expect(ft.migrated).not.toContain("temperature");
+    expect(ft.checklist.map((c) => c.id)).toContain("model-params-dropped");
+  });
+
+  it("when the call's end cannot be found, the params it may carry go on the checklist", () => {
+    const content = [
+      "message = client.messages.create(",
+      '    model="claude-opus-4-1-20250805",',
+      "    temperature=0.5,",
+      "",
+    ].join("\n");
+    const ft = transformForEvent(OPUS41_ROW, [{ path: "src/x.py", content }], ALL_ROWS).files[0];
+    expect(ft.migrated).toContain("temperature=0.5");
+    const item = ft.checklist.find((c) => c.id === "param-manual");
+    expect(item).toBeDefined();
+    expect(item!.text).toContain("src/x.py");
+  });
+});
+
+describe("paren range across multi-line strings", () => {
+  it("keeps a triple-quoted string's parens out of the range, so another model's params survive", () => {
+    const content = [
+      'SYSTEM = """You are a helper.',
+      "Answer with a smile :(",
+      '"""',
+      "",
+      "def a():",
+      '    return client.messages.create(model="claude-opus-4-1-20250805", system=SYSTEM, temperature=0.2)',
+      "",
+      "def b():",
+      '    return client.messages.create(model="claude-3-5-sonnet-20241022", temperature=0.7)',
+      "",
+      'FOOTER = """thanks',
+      "all done :)",
+      '"""',
+      "",
+    ].join("\n");
+    const result = transformForEvent(OPUS41_ROW, [{ path: "src/x.py", content }], ALL_ROWS);
+    const out = result.files[0].migrated!;
+    expect(out).toContain('model="claude-3-5-sonnet-20241022", temperature=0.7');
+    expect(out).not.toContain("temperature=0.2");
+  });
+
+  it("ignores a lone ) inside the swapped call's own template literal and still drops the param", () => {
+    const content = [
+      "const r = await client.messages.create({",
+      '  model: "claude-opus-4-1-20250805",',
+      "  system: `",
+      "    1) greet the user",
+      "  `,",
+      "  temperature: 0.5,",
+      "});",
+      "",
+    ].join("\n");
+    const result = transformForEvent(OPUS41_ROW, [{ path: "src/x.ts", content }], ALL_ROWS);
+    const out = result.files[0].migrated!;
+    expect(out).not.toContain("temperature");
+    expect(out).toContain("1) greet the user");
+  });
+
+  it("a stray apostrophe on one line does not swallow the rest of the file", () => {
+    const content = [
+      "x = re.compile(r\"don't\")",
+      'r = client.messages.create(model="claude-opus-4-1-20250805",',
+      "    temperature=0.3)",
+      "",
+    ].join("\n");
+    const result = transformForEvent(OPUS41_ROW, [{ path: "src/x.py", content }], ALL_ROWS);
+    expect(result.files[0].migrated!).not.toContain("temperature");
+  });
+});
+
+describe("word-like ids", () => {
+  it("rewrites only the quoted form and lists the bare occurrences for a hand check", () => {
+    const content = 'model = "ada"\nada = load()\nprint(ada)\n';
+    const result = transformForEvent(ADA_ROW, [{ path: "src/e.py", content }], ALL_ROWS);
+    expect(result.files[0].migrated).toBe('model = "babbage-002"\nada = load()\nprint(ada)\n');
+    const item = result.files[0].checklist.find((c) => c.id === "model-bare-id");
+    expect(item?.text).toContain("2 times");
+  });
+
+  it("gpt-4 is not word-like: the bare token is still swapped", () => {
+    const content = 'const a = "gpt-4";\nconst b = `gpt-4`;\n';
+    const result = transformForEvent(
+      { ...GPT4_TURBO_ROW, id: "openai:model:gpt-4", api_ids: ["gpt-4"] },
+      [{ path: "a.ts", content }],
+      ALL_ROWS,
+    );
+    expect(result.files[0].migrated).not.toContain("gpt-4");
+    expect(result.files[0].checklist.find((c) => c.id === "model-bare-id")).toBeUndefined();
   });
 });

@@ -75,8 +75,9 @@ which will read high if someone bothers.
 - `/api/repos/[repoId]/migrate`: session required, `repoId` validated as a positive integer,
   repo access re-checked against GitHub on each call; `SameSite=Lax` means a cross-site POST
   carries no cookie.
-- Webhook: signature verified before any handler runs; handler failure is a 500 so GitHub
-  redelivers; bad signature is a 401 so it does not.
+- Webhook: signature verified before any handler runs; handler failure is a 500, logged with
+  the delivery id (GitHub does not redeliver on its own; redelivery is by hand from the App's
+  delivery log); bad signature is a 401.
 - SQL: every query is a `postgres` tagged template; no string concatenation anywhere in the diff.
 - Recount workflow: `contents: write` scoped to its own repo, runs committed code only, the
   search token stays in a secret.

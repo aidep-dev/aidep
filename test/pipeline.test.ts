@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import * as tar from "tar";
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
-import { AidepConfigSchema } from "../src/config.ts";
-import { getRepo, markOnboarded, sql, upsertInstallation, upsertRepo } from "../src/db/index.ts";
+import { AidepConfigSchema, DEFAULT_CONFIG } from "../src/config.ts";
+import { getRepo, markOnboarded, setRepoConfig, sql, upsertInstallation, upsertRepo } from "../src/db/index.ts";
 import { migrate } from "../src/db/migrate.ts";
 import { buildOnboardingPr, openOnboardingPr } from "../src/github/onboarding.ts";
 import { isIgnored, onboardRepo, runJob, scanRepo } from "../src/pipeline.ts";
@@ -14,6 +14,8 @@ const state = vi.hoisted(() => ({
   defaultBranch: "main",
   tarball: null as ArrayBuffer | null,
   configContent: null as string | null,
+  /** status the contents GET fails with when configContent is null */
+  configStatus: 404,
   requests: [] as Array<{ route: string; params: Record<string, unknown> }>,
 }));
 
@@ -28,7 +30,9 @@ vi.mock("../src/github/octokit.ts", () => ({
         return { data: state.tarball };
       }
       if (route === "GET /repos/{owner}/{repo}/contents/{path}") {
-        if (state.configContent === null) throw new Error("404 Not Found");
+        if (state.configContent === null) {
+          throw Object.assign(new Error(`${state.configStatus}`), { status: state.configStatus });
+        }
         return { data: { content: Buffer.from(state.configContent).toString("base64") } };
       }
       throw new Error(`unexpected route ${route}`);
@@ -96,6 +100,7 @@ beforeEach(async () => {
   state.defaultBranch = "main";
   state.tarball = null;
   state.configContent = null;
+  state.configStatus = 404;
   state.requests = [];
   vi.clearAllMocks();
 });
@@ -176,6 +181,29 @@ it("rereadConfig fetches, persists, and applies the pushed config", async () => 
 
   expect(result.findings.map((f) => f.path)).toEqual(["lib/b.ts"]);
   expect((await getRepo(3104))?.config).toMatchObject({ ignore: ["src"], schedule: "daily" });
+});
+
+it("a reread that 404s puts the repo back on defaults", async () => {
+  await seedRepo(3108);
+  await setRepoConfig(3108, AidepConfigSchema.parse({ ignore: ["src"], evals: true }));
+  state.tarball = await tarballOf({ "src/a.ts": HIT, "lib/b.ts": HIT });
+
+  const { result } = await scanRepo(3108, { rereadConfig: true });
+
+  expect(result.findings.map((f) => f.path).sort()).toEqual(["lib/b.ts", "src/a.ts"]);
+  expect((await getRepo(3108))?.config).toEqual(DEFAULT_CONFIG);
+});
+
+it("a reread that fails for any other reason keeps the stored config", async () => {
+  await seedRepo(3109);
+  await setRepoConfig(3109, AidepConfigSchema.parse({ ignore: ["src"] }));
+  state.configStatus = 503;
+  state.tarball = await tarballOf({ "src/a.ts": HIT, "lib/b.ts": HIT });
+
+  const { result } = await scanRepo(3109, { rereadConfig: true });
+
+  expect(result.findings.map((f) => f.path)).toEqual(["lib/b.ts"]);
+  expect((await getRepo(3109))?.config).toMatchObject({ ignore: ["src"] });
 });
 
 it("a failing scan is marked failed and rethrows for the jobs layer", async () => {

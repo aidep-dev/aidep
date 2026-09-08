@@ -1,13 +1,18 @@
 import { z } from "zod";
 import { sql } from "../../../src/db/index.ts";
-import { operatorAlert } from "../../../src/notify.ts";
+import { upgradeAlert } from "../../../src/notify.ts";
 
 // Fake-door signal store: who clicked upgrade/waitlist before billing exists.
 const Body = z.object({
   source: z.enum(["pricing-upgrade", "landing-waitlist"]),
-  email: z.string().email().max(200).optional(),
+  email: z.string().trim().toLowerCase().email().max(200).optional(),
   context: z.string().max(2000).optional(),
 });
+
+// Every waitlist row costs one confirmation mail from our sender, and this
+// endpoint needs no account. Past this many rows an hour nothing is stored;
+// the form still hears ok, so a flood learns nothing from the answer.
+const HOURLY_ROW_CAP = 60;
 
 export async function POST(req: Request): Promise<Response> {
   const parsed = Body.safeParse(await req.json().catch(() => null));
@@ -21,7 +26,10 @@ export async function POST(req: Request): Promise<Response> {
     where source = ${source} and email is not distinct from ${email ?? null}
       and created_at > now() - interval '1 hour'
     limit 1`;
-  if (recent.length === 0) {
+  const [{ flooded }] = await sql<{ flooded: boolean }[]>`
+    select count(*) > ${HOURLY_ROW_CAP} as flooded from interest
+    where created_at > now() - interval '1 hour'`;
+  if (recent.length === 0 && !flooded) {
     await sql`
       insert into interest (source, email, context)
       values (${source}, ${email ?? null}, ${context ?? null})`;
@@ -29,10 +37,7 @@ export async function POST(req: Request): Promise<Response> {
       // The pricing page promises a same-day human reply; that cannot depend
       // on someone remembering to run SQL. Mail failure never fails the form.
       try {
-        await operatorAlert(
-          `aidep upgrade intent: ${email ?? "no email left"}`,
-          `Someone clicked upgrade on /pricing.\n\nemail: ${email ?? "(none)"}\ncontext: ${context ?? "(none)"}\n\nReply today; the page said we would.`,
-        );
+        await upgradeAlert();
       } catch (e) {
         console.error("operator alert failed:", e);
       }

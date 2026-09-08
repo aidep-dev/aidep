@@ -21,7 +21,19 @@ const SKIP_SEGMENTS = new Set(["node_modules", "vendor", ".git", "dist", "build"
 // reported as "calls fail today".
 const PROSE_EXTENSIONS = /\.(md|mdx|markdown|rst|txt)$/i;
 
-const MAX_BYTES = 1024 * 1024;
+export const MAX_BYTES = 1024 * 1024;
+
+/**
+ * Git allows any byte but NUL and "/" in a filename, so a path is hostile
+ * input from the moment it leaves the tarball: a control byte would reach the
+ * PR body and the CLI's stdout intact, and a hand-built tar can carry "..".
+ * Null means the entry must not be ingested at all.
+ */
+export function safePath(path: string): string | null {
+  if (path.split("/").includes("..")) return null;
+  // C0 and DEL, plus the Unicode bidi controls that can reorder a path in a PR table
+  return path.replace(/[\x00-\x1f\x7f‪-‮⁦-⁩]/g, "?");
+}
 
 function shouldSkip(file: ScanFile): boolean {
   const segments = file.path.split("/");

@@ -1,3 +1,4 @@
+import { MAX_FILES } from "./tarball.ts";
 import type { Finding, ScanResult } from "./types.ts";
 
 const DAY_MS = 86_400_000;
@@ -203,5 +204,11 @@ export function renderMarkdownReport(
   }
 
   out.push(`Files scanned: ${result.filesScanned}, skipped: ${result.filesSkipped}`, "");
+  if (result.truncated) {
+    out.push(
+      `The archive has more files than aidep reads in one scan (${MAX_FILES}); files past that point were not scanned, so this report is a floor.`,
+      "",
+    );
+  }
   return out.join("\n");
 }

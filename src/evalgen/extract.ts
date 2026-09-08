@@ -64,6 +64,18 @@ function parseCases(raw: string): EvalCase[] | null {
   return result.success ? result.data : null;
 }
 
+/** Files that hold credentials and never prompts: nothing in them goes out. */
+const SECRET_FILE = /^\.env(\..+)?$|\.(pem|key|p12|pfx)$|^(secrets?|credentials?)\./i;
+
+/** Key-shaped strings, then KEY=value style assignments, in the files that do go out. */
+const KEY_SHAPED =
+  /\b(?:sk-(?:ant-)?[A-Za-z0-9_-]{20,}|AIza[0-9A-Za-z_-]{35}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,})\b/g;
+const KEY_ASSIGNMENT = /(\b[A-Z0-9_]*(?:KEY|SECRET|TOKEN|PASSWORD)[A-Z0-9_]*\s*[=:]\s*['"]?)\S+/g;
+
+function redactSecrets(content: string): string {
+  return content.replace(KEY_SHAPED, "[redacted]").replace(KEY_ASSIGNMENT, "$1[redacted]");
+}
+
 /** Max LLM calls per extraction run; files, not repos, drive our cost. */
 export const MAX_FILES_PER_EXTRACTION = 20;
 
@@ -86,6 +98,10 @@ export async function extractCases(
   let called = 0;
   for (const file of files) {
     if (out.length >= cap) break;
+    if (SECRET_FILE.test(file.path.split("/").pop() ?? file.path)) {
+      console.warn(`evalgen: skipped ${file.path} (credential file, never sent for extraction)`);
+      continue;
+    }
     if (called >= fileCap && !isPromptFile(file.path)) {
       console.warn(
         `evalgen: reached the ${fileCap}-file extraction cap; ${files.length - files.indexOf(file)} file(s) not sampled`,
@@ -104,7 +120,7 @@ export async function extractCases(
     let raw: string;
     called++;
     try {
-      raw = await llm(SYSTEM_PROMPT, file.content);
+      raw = await llm(SYSTEM_PROMPT, redactSecrets(file.content));
     } catch (e) {
       console.warn(`evalgen: skipped ${file.path} (llm call failed: ${e instanceof Error ? e.message : e})`);
       continue;
@@ -128,6 +144,7 @@ export function anthropicLlm(): Llm {
   return async (system, user) => {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
+      signal: AbortSignal.timeout(60_000),
       headers: {
         "content-type": "application/json",
         "x-api-key": key,

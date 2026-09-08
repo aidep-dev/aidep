@@ -9,6 +9,8 @@ describe("key check route", () => {
     process.env.CRON_SECRET = "cron-secret-40";
     delete process.env.ANTHROPIC_API_KEY;
     delete process.env.GITHUB_SEARCH_TOKEN;
+    delete process.env.RESEND_API_KEY;
+    delete process.env.MAIL_FROM;
   });
 
   afterEach(() => {
@@ -23,14 +25,16 @@ describe("key check route", () => {
     expect((await get("Bearer cron-secret-40")).status).toBe(401);
   });
 
-  it("reports both keys unset without touching the network", async () => {
+  it("reports both keys unset, and mail unset with only half the pair, without touching the network", async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
+    process.env.MAIL_FROM = "aidep <watch@aidep.dev>";
     const res = await get("Bearer cron-secret-40");
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       anthropic: { ok: false, error: "ANTHROPIC_API_KEY is not set" },
       search: { ok: false, error: "GITHUB_SEARCH_TOKEN is not set" },
+      mail: { ok: false, error: "RESEND_API_KEY or MAIL_FROM is not set" },
     });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -53,9 +57,11 @@ describe("key check route", () => {
     expect(body.search.error).toMatch(/^github 401: .*Bad credentials/);
   });
 
-  it("reports ok with a detail when both keys work", async () => {
+  it("reports ok with a detail when both keys work and mail is wired", async () => {
     process.env.ANTHROPIC_API_KEY = "sk-ant-good";
     process.env.GITHUB_SEARCH_TOKEN = "ghp_good";
+    process.env.RESEND_API_KEY = "re_good";
+    process.env.MAIL_FROM = "aidep <watch@aidep.dev>";
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string) =>
@@ -67,6 +73,7 @@ describe("key check route", () => {
     expect(await (await get("Bearer cron-secret-40")).json()).toEqual({
       anthropic: { ok: true, detail: "ok" },
       search: { ok: true, detail: "16512 files match" },
+      mail: { ok: true, detail: "RESEND_API_KEY and MAIL_FROM set" },
     });
   });
 });

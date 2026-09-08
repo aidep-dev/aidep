@@ -46,7 +46,7 @@ import type { OctokitLike, RepoTarget } from "./github/types.ts";
 import type { Job } from "./jobs.ts";
 import { loadRegistry, type RegistryRow } from "./registry.ts";
 import { scanFiles } from "./scanner/scan.ts";
-import { untarToFiles } from "./scanner/tarball.ts";
+import { MAX_TARBALL_BYTES, untarToFiles } from "./scanner/tarball.ts";
 import type { ScanResult } from "./scanner/types.ts";
 import { transformForEvent } from "./transforms/index.ts";
 import type { EventFileInput } from "./transforms/types.ts";
@@ -152,8 +152,14 @@ export async function scanRepo(
       config = parseConfig(raw).config;
       await setRepoConfig(repoId, config);
       repo.config = config;
-    } catch {
-      // config unreadable (deleted?): keep the stored config
+    } catch (e) {
+      // Deleted config means back to defaults (evals off, no notify addresses);
+      // a transient contents-API error keeps the stored config.
+      if (statusOf(e) === 404) {
+        config = DEFAULT_CONFIG;
+        await setRepoConfig(repoId, config);
+        repo.config = config;
+      }
     }
   }
 
@@ -165,10 +171,13 @@ export async function scanRepo(
       repo: repo.name,
       ref: defaultBranch,
     });
-    const files = untarToFiles(gunzipSync(toBuffer(tar.data)));
+    const untar = { skippedLarge: 0, truncated: false };
+    const files = untarToFiles(gunzipSync(toBuffer(tar.data), { maxOutputLength: MAX_TARBALL_BYTES }), untar);
     const kept = files.filter((f) => !isIgnored(f.path, config.ignore));
     const rows = await loadRegistry();
     const result = scanFiles(kept, rows);
+    result.filesSkipped += untar.skippedLarge;
+    result.truncated = untar.truncated;
     await recordFindings(repoId, scanId, result.findings);
     await finishScan(scanId, "done", {
       filesScanned: result.filesScanned,
@@ -490,6 +499,10 @@ export async function createMigrationPr(repoId: number, registryId: string): Pro
   const repo = await getRepo(repoId);
   if (!repo) {
     console.log(`create_migration_pr: repo ${repoId} not found, skipping`);
+    return;
+  }
+  if (repo.onboarded_at === null) {
+    console.log(`create_migration_pr: repo ${repoId} not onboarded, skipping`);
     return;
   }
   const config = repo.config ?? DEFAULT_CONFIG;

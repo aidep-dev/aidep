@@ -33,6 +33,15 @@ export async function POST(
   const { repo, allowed } = await requireRepoAccess(session, repoId);
   if (!repo || !allowed) return new Response("forbidden", { status: 403 });
 
+  // Nothing but the onboarding PR until it merges. The job checks too, so a
+  // request queued before this guard cannot outrun it.
+  if (repo.onboarded_at === null) {
+    return Response.json(
+      { error: "Merge the onboarding PR first; aidep opens nothing else until then." },
+      { status: 409 },
+    );
+  }
+
   // Answered here, not only in the job, so a capped request gets a reason
   // instead of a button that appears to work and then does nothing.
   const capped = await migrationCapBlock(

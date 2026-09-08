@@ -49,7 +49,7 @@ node src/seed.ts              # regenerate registry/*.json from the fixtures
 1. GitHub: Settings → Developer settings → GitHub Apps → New GitHub App.
 2. Webhook URL: `<APP_URL>/api/github/webhook` with a secret you generate. During development, point a tunnel (cloudflared, ngrok, smee) at `localhost:3000` and use the tunnel URL as `APP_URL`.
 3. Permissions, exactly three: Metadata read, Contents read and write, Pull requests read and write. Subscribe to events: Push, Pull request.
-4. Enable "Request user authorization (OAuth) during installation" is not required; the dashboard uses the App's OAuth credentials with the plain web flow. Set the callback URL to `<APP_URL>/api/auth/callback`.
+4. Enable "Request user authorization (OAuth) during installation" is not required; the dashboard uses the App's OAuth credentials with the plain web flow. Set the callback URL to `<APP_URL>/api/auth/callback`. Turn on "Expire user authorization tokens" in the App's General settings: sign-out revokes the user token best effort, and that setting is the eight-hour backstop.
 5. Generate a private key. Fill `.env.local` from `env.example` (private key with `\n` for newlines).
 6. `npm run dev`, install the App on a repo you own, and the onboarding PR with the scan report arrives in the repo.
 

@@ -3,12 +3,12 @@ import { DEFAULT_CONFIG, parseConfig } from "../config.ts";
 import {
   deleteInstallation,
   getPrByNumber,
-  getRepo,
   markOnboarded,
   setInstallationSuspended,
   sql,
   upsertInstallation,
   upsertRepo,
+  type RepoRow,
 } from "../db/index.ts";
 import { enqueue } from "../jobs.ts";
 import { installationOctokit } from "./octokit.ts";
@@ -26,6 +26,16 @@ type InstallationAccount = { login?: string; slug?: string } | null;
 
 function accountLogin(account: InstallationAccount): string {
   return account?.login ?? account?.slug ?? "unknown";
+}
+
+/** getRepo minus repos whose installation is suspended: GitHub stops
+ * delivering for those, and a straggler must not enqueue work either. */
+async function activeRepo(id: number): Promise<RepoRow | null> {
+  const rows = await sql<RepoRow[]>`
+    select r.* from repos r
+    join installations i on i.id = r.installation_id
+    where r.id = ${id} and i.suspended_at is null`;
+  return rows[0] ?? null;
 }
 
 async function addRepos(
@@ -66,7 +76,12 @@ export function registerHandlers(app: App): void {
   app.webhooks.on("installation_repositories.removed", async ({ payload }) => {
     for (const r of payload.repositories_removed) {
       // db/index.ts is a frozen contract with no deleteRepo helper; inline the
-      // delete here. scans/findings/prs cascade via FK.
+      // delete here. scans/findings/prs cascade via FK; jobs do not (payload
+      // carries repoId), so pending ones go first or they retry 5x against a
+      // deleted repo.
+      await sql`
+        delete from jobs
+        where status in ('queued', 'running') and (payload->>'repoId')::bigint = ${r.id}`;
       await sql`delete from repos where id = ${r.id}`;
     }
   });
@@ -85,10 +100,13 @@ export function registerHandlers(app: App): void {
 
   app.webhooks.on("push", async ({ payload }) => {
     const repoId = payload.repository.id;
-    const repo = await getRepo(repoId);
+    const repo = await activeRepo(repoId);
     if (!repo) return;
     const touched = (p: string) =>
-      payload.commits.some((c) => (c.added ?? []).includes(p) || (c.modified ?? []).includes(p));
+      payload.commits.some(
+        (c) =>
+          (c.added ?? []).includes(p) || (c.modified ?? []).includes(p) || (c.removed ?? []).includes(p),
+      );
 
     if (payload.ref === `refs/heads/${repo.default_branch}`) {
       // not onboarded (onboarding PR still open, or closed unmerged): disabled
@@ -115,7 +133,7 @@ export function registerHandlers(app: App): void {
   });
 
   app.webhooks.on("pull_request.closed", async ({ payload }) => {
-    const repo = await getRepo(payload.repository.id);
+    const repo = await activeRepo(payload.repository.id);
     if (!repo) return;
 
     if (payload.number !== repo.onboarding_pr_number) {

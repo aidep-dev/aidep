@@ -2,7 +2,9 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { loadLocalDir } from "../src/scanner/local.ts";
-import { scanFiles } from "../src/scanner/scan.ts";
+import { PARAM_MODEL_GATE } from "../src/scanner/patterns.ts";
+import { safePath, scanFiles } from "../src/scanner/scan.ts";
+import { MAX_FILES, untarToFiles } from "../src/scanner/tarball.ts";
 import type { ScanResult } from "../src/scanner/types.ts";
 import { MINI_REGISTRY } from "./mini-registry.ts";
 
@@ -231,5 +233,90 @@ describe("real-world regression: precision", () => {
     const text = "@client = client.beta(assistants: OpenAI::Assistants::BETA_VERSION)\n";
     const found = scanFiles([{ path: "assistants.rb", text }], MINI_REGISTRY).findings;
     expect(found.some((f) => f.matched === "beta(assistants:)")).toBe(true);
+  });
+});
+
+/** Minimal ustar archive: a header block per entry, padded data, two zero blocks. */
+function tarOf(entries: Array<[string, string | Buffer]>): Buffer {
+  const blocks: Buffer[] = [];
+  for (const [path, body] of entries) {
+    const data = Buffer.from(body);
+    const header = Buffer.alloc(512);
+    header.write(path, 0, 100, "latin1");
+    header.write("0000644\0", 100);
+    header.write("0000000\0", 108);
+    header.write("0000000\0", 116);
+    header.write(`${data.length.toString(8).padStart(11, "0")}\0`, 124);
+    header.write("00000000000\0", 136);
+    header.write("        ", 148);
+    header.write("0", 156);
+    header.write("ustar\0", 257);
+    header.write("00", 263);
+    let sum = 0;
+    for (const b of header) sum += b;
+    header.write(`${sum.toString(8).padStart(6, "0")}\0 `, 148);
+    blocks.push(header, data, Buffer.alloc((512 - (data.length % 512)) % 512));
+  }
+  blocks.push(Buffer.alloc(1024));
+  return Buffer.concat(blocks);
+}
+
+describe("tarball ingestion bounds", () => {
+  it("skips an entry past the scan size cap and stops after MAX_FILES", () => {
+    const small: Array<[string, string]> = [];
+    for (let i = 0; i <= MAX_FILES; i++) small.push([`repo/f${i}.ts`, "x"]);
+    const files = untarToFiles(tarOf([["repo/big.bin", Buffer.alloc(1024 * 1024 + 1)], ...small]));
+    expect(files.some((f) => f.path === "big.bin")).toBe(false);
+    expect(files).toHaveLength(MAX_FILES);
+  });
+
+  it("drops a .. path and replaces control bytes in a path", () => {
+    const files = untarToFiles(
+      tarOf([
+        ["repo/../etc/passwd", "root"],
+        ["repo/a\n\n# injected heading\x1b[31m.py", "x"],
+      ]),
+    );
+    expect(files.map((f) => f.path)).toEqual(["a??# injected heading?[31m.py"]);
+  });
+});
+
+describe("regex time budget", () => {
+  // the unbounded matchers took minutes per MB on these lines, on the scan
+  // job and on a stranger's `npx aidep owner/repo`
+  const MB = 1024 * 1024;
+  for (const [label, text] of [
+    ["claude- repeated", "claude-".repeat(MB / 7)],
+    ["underscores", "_".repeat(MB)],
+  ] as const) {
+    it(`scans a 1 MB line of ${label} in bounded time`, () => {
+      const t = performance.now();
+      scanFiles([{ path: "a.ts", text }], MINI_REGISTRY);
+      expect(performance.now() - t).toBeLessThan(2000);
+    });
+  }
+
+  it("PARAM_MODEL_GATE still matches and rejects the same ids", () => {
+    for (const id of ["claude-opus-4-8", "claude-haiku-5", "claude-opus-4-7-20260101", "claude-mythos-5"]) {
+      expect(PARAM_MODEL_GATE.test(id), id).toBe(true);
+    }
+    for (const id of ["claude-sonnet-4-6", "claude-3-5-sonnet-20240620", "claude-opus-4-1-20250805"]) {
+      expect(PARAM_MODEL_GATE.test(id), id).toBe(false);
+    }
+  });
+});
+
+describe("tarball ingestion stats", () => {
+  it("counts the oversized entry and flags the cut so the report can say the scan is partial", () => {
+    const small: Array<[string, string]> = [];
+    for (let i = 0; i <= MAX_FILES; i++) small.push([`repo/f${i}.ts`, "x"]);
+    const stats = { skippedLarge: 0, truncated: false };
+    untarToFiles(tarOf([["repo/big.bin", Buffer.alloc(1024 * 1024 + 1)], ...small]), stats);
+    expect(stats).toEqual({ skippedLarge: 1, truncated: true });
+  });
+
+  it("replaces bidi controls in a path", () => {
+    expect(safePath("a‮yp.gnp.py")).toBe("a?yp.gnp.py");
+    expect(safePath("src/⁦x⁩.py")).toBe("src/?x?.py");
   });
 });

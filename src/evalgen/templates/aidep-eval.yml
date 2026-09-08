@@ -21,7 +21,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # the PR branch itself, not the detached merge ref: the results
+          # commit has to land on the branch aidep's ingest watches
+          ref: ${{ github.head_ref || github.ref }}
           fetch-depth: 0
+          # the promptfoo steps run PR-editable asserts, so the job token stays
+          # out of .git/config and reaches only the report step
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
