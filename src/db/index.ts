@@ -2,17 +2,21 @@ import postgres from "postgres";
 import type { Finding } from "../scanner/types.ts";
 import type { AidepConfig } from "../config.ts";
 
-export const sql = postgres(
-  process.env.DATABASE_URL ?? "postgres://postgres@localhost:5433/aidep",
-  {
-    onnotice: () => {},
-    // one warm serverless instance otherwise holds 10 connections open forever
-    max: 5,
-    idle_timeout: 20,
-    connect_timeout: 10,
-    connection: { application_name: "aidep", statement_timeout: 30_000 },
-  },
-);
+const DATABASE_URL = process.env.DATABASE_URL ?? "postgres://postgres@localhost:5433/aidep";
+// The docker database in dev and CI has no TLS at all. Anything else is Neon,
+// whose certificate chains to a public root, so verify it instead of taking
+// sslmode=require's word for who is on the other end.
+const local = /^(localhost|127\.0\.0\.1)$/.test(new URL(DATABASE_URL).hostname);
+
+export const sql = postgres(DATABASE_URL, {
+  onnotice: () => {},
+  // one warm serverless instance otherwise holds 10 connections open forever
+  max: 5,
+  idle_timeout: 20,
+  connect_timeout: 10,
+  connection: { application_name: "aidep", statement_timeout: 30_000 },
+  ssl: local ? false : ("verify-full" as const),
+});
 
 // ---- installations ----
 
