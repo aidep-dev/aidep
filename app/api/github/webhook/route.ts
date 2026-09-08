@@ -23,7 +23,9 @@ export async function POST(req: Request): Promise<Response> {
 
   // Verify the signature on its own so a handler that throws can't be reported
   // as a bad signature. A bad signature is 401 (GitHub drops it); a handler
-  // failure is 500, which shows red in the delivery log and gets redelivered.
+  // failure is 500, which shows red in the delivery log. GitHub does not
+  // redeliver on its own, so the log line below is how a lost delivery gets
+  // noticed and redelivered by hand.
   let signatureOk = false;
   try {
     signatureOk = await app.webhooks.verify(body, req.headers.get("x-hub-signature-256") ?? "");
@@ -32,14 +34,17 @@ export async function POST(req: Request): Promise<Response> {
   }
   if (!signatureOk) return new Response("bad signature", { status: 401 });
 
+  const delivery = req.headers.get("x-github-delivery") ?? "";
+  const event = req.headers.get("x-github-event") ?? "";
   try {
     await app.webhooks.receive({
-      id: req.headers.get("x-github-delivery") ?? "",
+      id: delivery,
       // GitHub sends the event name; receive validates it
-      name: (req.headers.get("x-github-event") ?? "") as never,
+      name: event as never,
       payload: JSON.parse(body) as never,
     });
-  } catch {
+  } catch (e) {
+    console.error(`webhook ${event} ${delivery} failed:`, e);
     return new Response("handler error", { status: 500 });
   }
 

@@ -5,7 +5,7 @@ import { loadRegistry } from "../src/registry.ts";
 import { loadLocalDir } from "../src/scanner/local.ts";
 import { scanFiles } from "../src/scanner/scan.ts";
 import { renderMarkdownReport } from "../src/scanner/report.ts";
-import { untarToFiles } from "../src/scanner/tarball.ts";
+import { MAX_TARBALL_BYTES, untarToFiles } from "../src/scanner/tarball.ts";
 
 const target = process.argv[2];
 if (target === undefined || target === "") {
@@ -39,12 +39,37 @@ if (existsSync(target)) {
     console.error(`GitHub tarball fetch failed for ${target}: ${res.status} ${res.statusText}`);
     process.exit(1);
   }
-  let buf = Buffer.from(await res.arrayBuffer());
+  const tooBig = (): never => {
+    console.error(`${target} is past the ${MAX_TARBALL_BYTES >> 20} MB tarball limit; clone it and run aidep on the checkout instead.`);
+    process.exit(1);
+  };
+  const chunks: Buffer[] = [];
+  let received = 0;
+  const reader = res.body!.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    received += value.length;
+    if (received > MAX_TARBALL_BYTES) tooBig();
+    chunks.push(Buffer.from(value));
+  }
+  let buf = Buffer.concat(chunks);
   // fetch only auto-decompresses when Content-Encoding is set; the tarball
   // body itself is gzip, so sniff the magic bytes before gunzipping
-  if (buf[0] === 0x1f && buf[1] === 0x8b) buf = gunzipSync(buf);
-  const files = untarToFiles(buf);
-  console.log(renderMarkdownReport(scanFiles(files, rows), { now, repoLabel: target }));
+  if (buf[0] === 0x1f && buf[1] === 0x8b) {
+    try {
+      buf = gunzipSync(buf, { maxOutputLength: MAX_TARBALL_BYTES });
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === "ERR_BUFFER_TOO_LARGE") tooBig();
+      throw e;
+    }
+  }
+  const untar = { skippedLarge: 0, truncated: false };
+  const files = untarToFiles(buf, untar);
+  const result = scanFiles(files, rows);
+  result.filesSkipped += untar.skippedLarge;
+  result.truncated = untar.truncated;
+  console.log(renderMarkdownReport(result, { now, repoLabel: target }));
 } else {
   console.error(`"${target}" is neither an existing directory nor an owner/repo slug.`);
   process.exit(1);

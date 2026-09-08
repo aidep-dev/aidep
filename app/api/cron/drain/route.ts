@@ -39,6 +39,11 @@ async function rescanOnRegistryChange(): Promise<number> {
   return enqueued.length;
 }
 
+/** The exposure walk alone is about two minutes (16 searches spaced 7s
+ * apart), then up to 25 jobs and the mail pass. 300s is the Fluid plan
+ * default; the 15m wedge recovery below stays well clear of it. */
+export const maxDuration = 300;
+
 /**
  * Vercel cron target (see vercel.json): enqueue scheduled rescans for stale
  * repos, then drain the job queue.
@@ -102,7 +107,14 @@ export async function GET(req: Request): Promise<Response> {
       select max(counted_at) as counted_at from exposure_counts`;
     const stale =
       !last?.counted_at || Date.now() - new Date(last.counted_at).getTime() > 20 * 60 * 60 * 1000;
-    if (stale) exposure = await refreshExposure({ token: ghToken });
+    // A registry-source outage must not stop the customer queue behind it.
+    if (stale) {
+      try {
+        exposure = await refreshExposure({ token: ghToken });
+      } catch (e) {
+        console.error("exposure refresh failed:", e);
+      }
+    }
   }
 
   const r = await drain(runJob, { max: 25 });

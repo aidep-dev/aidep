@@ -15,6 +15,7 @@ import type {
   EventTransformResult,
   FileTransform,
 } from "./types.ts";
+import { ID_LITERAL_MIN } from "../scanner/patterns.ts";
 import { mdEscape } from "../scanner/report.ts";
 import { BACKFILL_THREADS_MJS, FETCH_AND_INLINE_MJS } from "./scripts.ts";
 
@@ -295,8 +296,11 @@ function applyOps(lines: string[], ops: Op[]): string[] {
 // ---------------------------------------------------------------------------
 // the 4-call dance
 
-const RE_MSG_CREATE = /([\w.$]+)\.beta\.threads\.messages\.create\(/;
-const RE_RUNS = /([\w.$]+)\.beta\.threads\.runs\.(create_and_poll|createAndPoll|create)\(/;
+// the receiver capture starts at a token edge: without the lookbehind the
+// greedy `[\w.$]+` retries from every char of a long identifier run and the
+// scan of a 1 MB line takes minutes
+const RE_MSG_CREATE = /(?<![\w.$])([\w.$]+)\.beta\.threads\.messages\.create\(/;
+const RE_RUNS = /(?<![\w.$])([\w.$]+)\.beta\.threads\.runs\.(create_and_poll|createAndPoll|create)\(/;
 const RE_RETRIEVE = /\.beta\.threads\.runs\.retrieve\(/;
 const RE_MSG_LIST = /\.beta\.threads\.messages\.list\(/;
 const RE_WHILE_PY = /^(\s*)while\s+[\w.]+\.status\b/;
@@ -509,14 +513,14 @@ function recognizeDance(lines: string[], fn: FnRange, lang: Lang): DanceResult {
   // list, so it maps to [response.output_text] to keep the caller's type.
   const idioms: Array<{ re: RegExp; replacement: string }> = [
     {
-      re: new RegExp(String.raw`${msgVar}\.data\[0\]\.content\[0\]\.text\.value`, "g"),
+      re: new RegExp(String.raw`${reEscape(msgVar)}\.data\[0\]\.content\[0\]\.text\.value`, "g"),
       replacement: "response.output_text",
     },
   ];
   if (lang === "py") {
     idioms.push({
       re: new RegExp(
-        String.raw`\[\s*(\w+)\.content\[0\]\.text\.value\s+for\s+\1\s+in\s+${msgVar}\.data\s*\]`,
+        String.raw`\[\s*(\w+)\.content\[0\]\.text\.value\s+for\s+\1\s+in\s+${reEscape(msgVar)}\.data\s*\]`,
         "g",
       ),
       replacement: "[response.output_text]",
@@ -540,8 +544,11 @@ function recognizeDance(lines: string[], fn: FnRange, lang: Lang): DanceResult {
   }
 
   // no leftover uses of the run/messages vars may survive the rewrite
-  const leftoverRes = [new RegExp(String.raw`\b${msgVar}\b`)];
-  if (runVar !== null) leftoverRes.push(new RegExp(String.raw`\b${runVar}\b`));
+  // same `$`-aware boundary as removeCreateOps: `\b` would let `$msgs` slip past
+  const leftoverRes = [new RegExp(String.raw`(?<![A-Za-z0-9_$])${reEscape(msgVar)}(?![A-Za-z0-9_$])`)];
+  if (runVar !== null) {
+    leftoverRes.push(new RegExp(String.raw`(?<![A-Za-z0-9_$])${reEscape(runVar)}(?![A-Za-z0-9_$])`));
+  }
   const patchedLines = new Set(patches.map((p) => (p.kind === "patch" ? p.line : -1)));
   for (let i = from; i <= to; i++) {
     if (inSpan(i, spans)) continue;
@@ -615,7 +622,7 @@ function danceOps(d: Dance, lang: Lang, lifted: LiftedConfig | null): Op[] {
 // ---------------------------------------------------------------------------
 // in-code assistants.create inlining (3c)
 
-const RE_ASSISTANTS_CREATE = /([\w.$]+)\.beta\.assistants\.create\(/;
+const RE_ASSISTANTS_CREATE = /(?<![\w.$])([\w.$]+)\.beta\.assistants\.create\(/;
 
 interface CreateInfo {
   /** null when the call could not even be located as one statement */
@@ -785,8 +792,9 @@ function removeCreateOps(
 // ---------------------------------------------------------------------------
 // always-checklist patterns (3e)
 
-const ASST_LITERAL = /(?<![A-Za-z0-9_])asst_[A-Za-z0-9]{6,}/;
-const ASSISTANT_ENV = /(?<![A-Za-z0-9])[A-Z0-9_]*ASSISTANT_ID[A-Z0-9_]*/;
+// same id floor and bounded env prefix as the scanner, so the two never drift
+const ASST_LITERAL = new RegExp(`(?<![A-Za-z0-9_])asst_[A-Za-z0-9]{${ID_LITERAL_MIN},}(?![A-Za-z0-9_])`);
+const ASSISTANT_ENV = /(?<![A-Za-z0-9])[A-Z0-9_]{0,64}ASSISTANT_ID/;
 
 const ALWAYS_RULES: Array<{ id: string; re: RegExp; text: string; backfill?: boolean }> = [
   {
@@ -827,7 +835,9 @@ const ALWAYS_RULES: Array<{ id: string; re: RegExp; text: string; backfill?: boo
   },
   {
     id: "assistants-thread-backfill",
-    re: /(?<![A-Za-z0-9_])thread_[A-Za-z0-9]{6,}|[A-Z0-9_]*THREAD_ID[A-Z0-9_]*|threads\.retrieve/,
+    re: new RegExp(
+      `(?<![A-Za-z0-9_])thread_[A-Za-z0-9]{${ID_LITERAL_MIN},}(?![A-Za-z0-9_])|(?<![A-Za-z0-9])[A-Z0-9_]{0,64}THREAD_ID|threads\\.retrieve`,
+    ),
     text:
       "Stored threads need their history backfilled into Conversations before the 2026-08-26 shutdown. Run aidep/backfill-threads.mjs (generated in this PR) once per thread id; it lists anything it cannot carry over.",
     backfill: true,

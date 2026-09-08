@@ -40,9 +40,15 @@ export async function loadRegistry(source = process.env.REGISTRY_SOURCE ?? "../a
   const files = ["openai.json", "anthropic.json", "google.json"];
   const rows: RegistryRow[] = [];
   for (const f of files) {
-    const raw = source.startsWith("https://")
-      ? await (await fetch(`${source.replace(/\/$/, "")}/${f}`)).text()
-      : await readFile(`${source}/${f}`, "utf8");
+    let raw: string;
+    if (source.startsWith("https://")) {
+      const url = `${source.replace(/\/$/, "")}/${f}`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+      if (!res.ok) throw new Error(`registry fetch failed: ${res.status} ${url}`);
+      raw = await res.text();
+    } else {
+      raw = await readFile(`${source}/${f}`, "utf8");
+    }
     rows.push(...RegistryFileSchema.parse(JSON.parse(raw)));
   }
   cache = { source, rows, loadedAt: Date.now() };

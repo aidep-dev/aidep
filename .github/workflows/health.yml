@@ -1,9 +1,10 @@
 name: health
 # The two sensitive keys (ANTHROPIC_API_KEY, GITHUB_SEARCH_TOKEN) cannot be
 # read back out of Vercel, so a dead one fails silently: eval packs skip and
-# /dead freezes. /api/check probes both from inside the deployment; this
-# asks it once a day and fails the run on any probe that is not ok. GitHub
-# mails the repo owner about a failed scheduled run, which is the alert.
+# /dead freezes. /api/check probes both from inside the deployment, plus
+# whether mail is wired at all; this asks it once a day and fails the run on
+# any probe that is not ok. A red run opens one issue labelled health (or
+# bumps the open one), so it is seen whatever the notification settings say.
 on:
   schedule:
     - cron: "23 7 * * *"
@@ -12,6 +13,8 @@ permissions: {}
 jobs:
   check:
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     steps:
       - name: Probe the keys from inside the deployment
         env:
@@ -19,4 +22,18 @@ jobs:
         run: |
           body=$(curl -sS --fail-with-body -H "authorization: Bearer $CRON_SECRET" https://aidep.dev/api/check)
           echo "$body" | jq .
-          echo "$body" | jq -e '.anthropic.ok and .search.ok' > /dev/null
+          echo "$body" | jq -e '.anthropic.ok and .search.ok and .mail.ok' > /dev/null
+      - name: Open or bump the health issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh label create health --description "the daily key probe is red" --force
+          number=$(gh issue list --label health --state open --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "Still red: $RUN_URL"
+          else
+            gh issue create --title "health: the daily key probe is red" --label health --body "Probe run: $RUN_URL"
+          fi

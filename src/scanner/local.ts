@@ -1,5 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { safePath } from "./scan.ts";
 import type { ScanFile } from "./types.ts";
 
 // scan.ts re-checks vendor/dist/etc.; skipping these two here just avoids
@@ -17,7 +18,8 @@ export async function loadLocalDir(root: string): Promise<ScanFile[]> {
       if (entry.isDirectory()) {
         if (!WALK_SKIP.has(entry.name)) await walk(join(dir, entry.name), relPath);
       } else if (entry.isFile()) {
-        files.push({ path: relPath, text: await readFile(join(dir, entry.name), "utf8") });
+        const path = safePath(relPath);
+        if (path !== null) files.push({ path, text: await readFile(join(dir, entry.name), "utf8") });
       }
     }
   }

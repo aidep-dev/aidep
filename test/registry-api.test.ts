@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { findRow, replacementChain, rottedRows } from "../src/chain.ts";
 import { loadRegistry, RegistryRowSchema, type RegistryRow } from "../src/registry.ts";
 import { MINI_REGISTRY } from "./mini-registry.ts";
@@ -6,6 +6,8 @@ import { GET as registryGet } from "../app/api/registry/route.ts";
 import { GET as lookupGet } from "../app/api/registry/[...id]/route.ts";
 import { GET as schemaGet } from "../app/api/registry/schema.json/route.ts";
 import { GET as llmsGet } from "../app/llms.txt/route.ts";
+import robots from "../app/robots.ts";
+import nextConfig from "../next.config.ts";
 
 const lookup = (...id: string[]) =>
   lookupGet(new Request(`http://localhost/api/registry/${id.join("/")}`), { params: Promise.resolve({ id }) });
@@ -106,5 +108,36 @@ describe("llms.txt", () => {
     expect(text).toContain("/api/registry/gpt-4-turbo");
     expect(text).toContain("/dead");
     expect(text).toContain("/roadmap");
+  });
+
+  it("robots.txt lets crawlers fetch the registry API llms.txt points at, and nothing else under /api", () => {
+    const { rules } = robots();
+    const rule = Array.isArray(rules) ? rules[0] : rules;
+    expect(rule.allow).toEqual(["/", "/api/registry"]);
+    expect(rule.disallow).toEqual(["/dashboard", "/api/"]);
+  });
+});
+
+describe("response headers", () => {
+  it("hides X-Powered-By and sends the hygiene headers on every path", async () => {
+    expect(nextConfig.poweredByHeader).toBe(false);
+    const [all] = await nextConfig.headers!();
+    expect(all.source).toBe("/:path*");
+    expect(all.headers).toEqual([
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "X-Frame-Options", value: "DENY" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+    ]);
+  });
+});
+
+describe("registry over https", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("rejects a non-2xx response instead of parsing its body, and sends a timeout signal", async () => {
+    const fetchSpy = vi.fn<typeof fetch>(async () => new Response("nope", { status: 500 }));
+    vi.stubGlobal("fetch", fetchSpy);
+    await expect(loadRegistry("https://registry.invalid/registry")).rejects.toThrow(/500/);
+    expect(fetchSpy.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
   });
 });

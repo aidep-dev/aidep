@@ -83,7 +83,7 @@ create table if not exists interest (
 -- the repo's aidep.json (notify) or the waitlist form, never from GitHub.
 create table if not exists notifications (
   id bigserial primary key,
-  kind text not null, -- exposure | waitlist
+  kind text not null, -- exposure | waitlist | confirm | operator
   recipient text not null,
   subject_key text not null, -- exposure: repo_id:registry_id; waitlist: the dies date
   sent_at timestamptz not null default now(),

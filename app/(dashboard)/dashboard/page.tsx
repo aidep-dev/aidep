@@ -1,9 +1,8 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { getUserInstallationIds } from "../../../src/auth/session.ts";
+import { getUserAccess, type UserAccess } from "../../../src/auth/session.ts";
 import { daysUntil, repoIndex, type RepoIndexRow } from "../../../src/dashboard/queries.ts";
-import { requireSession } from "../auth.ts";
+import { githubFailure, requireSession } from "../auth.ts";
 
 function deathCell(r: RepoIndexRow, today: string): ReactNode {
   if (!r.onboarded_at) {
@@ -48,15 +47,19 @@ function deathCell(r: RepoIndexRow, today: string): ReactNode {
 
 export default async function DashboardPage() {
   const session = await requireSession();
-  let installationIds: number[];
+  let access: UserAccess;
   try {
-    installationIds = await getUserInstallationIds(session.token);
-  } catch {
-    // token expired or revoked; a fresh sign-in mints a new one
-    redirect("/api/auth/login");
+    access = await getUserAccess(session.token);
+  } catch (e) {
+    return (
+      <section>
+        <h1 className="text-3xl">Repositories</h1>
+        <p className="mt-3 text-sm text-dead">{githubFailure(e)}</p>
+      </section>
+    );
   }
 
-  if (installationIds.length === 0) {
+  if (access.installationIds.length === 0) {
     const slug = process.env.NEXT_PUBLIC_GITHUB_APP_SLUG;
     return (
       <section className="max-w-xl">
@@ -84,7 +87,9 @@ export default async function DashboardPage() {
   }
 
   const today = new Date().toISOString().slice(0, 10);
-  const repos = await repoIndex(installationIds, today);
+  // an org-wide install can hold repos this user cannot read on GitHub; list only what they can
+  const visible = new Set(access.repoIds);
+  const repos = (await repoIndex(access.installationIds, today)).filter((r) => visible.has(Number(r.id)));
 
   return (
     <section>

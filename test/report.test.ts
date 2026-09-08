@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { loadLocalDir } from "../src/scanner/local.ts";
@@ -105,5 +108,28 @@ describe("test-path demotion", () => {
 
   it("counts the summary over every finding, test code included", () => {
     expect(report).toContain("**3 findings in 3 files · 3 dead · 0 dying**");
+  });
+});
+
+describe("hostile paths", () => {
+  it("a newline and an ESC in a file name cannot inject into the report", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "aidep-report-"));
+    writeFileSync(join(dir, "a\n\n# injected heading\x1b[31m.py"), 'model = "gpt-4-turbo"\n');
+    const report = renderMarkdownReport(scanFiles(await loadLocalDir(dir), MINI_REGISTRY), { now: "2026-08-16" });
+    rmSync(dir, { recursive: true, force: true });
+    expect(report).toContain("| a??# injected heading?\\[31m.py | 1 | gpt-4-turbo |");
+    expect(report).not.toContain("\n# injected heading");
+    expect(report).not.toContain("\x1b");
+  });
+});
+
+describe("truncated archive", () => {
+  it("says the report is a floor when the ingest cap cut the archive", () => {
+    const report = renderMarkdownReport(
+      { findings: [], filesScanned: 5000, filesSkipped: 0, truncated: true },
+      { now: "2026-08-16", repoLabel: "acme/huge" },
+    );
+    expect(report).toContain("more files than aidep reads in one scan (5000)");
+    expect(report).toContain("this report is a floor");
   });
 });

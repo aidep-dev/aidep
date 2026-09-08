@@ -15,10 +15,12 @@ export interface Matcher {
 /**
  * Param findings only count when the same file pins a Claude model new enough
  * for the params to be a live deprecation (claude 4.7+, claude 5+, or the
- * mythos family). Bare `temperature` in unrelated code never fires.
+ * mythos family). Bare `temperature` in unrelated code never fires. The
+ * family segments are bounded because an unbounded `(?:[a-z]+-)*` is
+ * quadratic on a line of `claude-claude-claude-`.
  */
 export const PARAM_MODEL_GATE =
-  /claude-(?:[a-z]+-)*(?:4-[7-9]|[5-9])(?![0-9])|claude-mythos/;
+  /claude-(?:[a-z]+-){0,4}(?:4-[7-9]|[5-9])(?![0-9])|claude-mythos/;
 
 /**
  * Helper names like `createAndPoll` and `submit_tool_outputs` say nothing on
@@ -42,9 +44,9 @@ export const ASSISTANTS_FILE_GATE =
  * that scan). Require an id-shaped run and refuse a trailing word char so a
  * longer snake_case name cannot satisfy it.
  */
-const ID_LITERAL_MIN = 16;
+export const ID_LITERAL_MIN = 16;
 
-function escapeRegExp(s: string): string {
+export function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
@@ -86,7 +88,9 @@ function assistantsMatchers(row: RegistryRow): Matcher[] {
       new RegExp(`(?<![A-Za-z0-9_])run_[A-Za-z0-9]{${ID_LITERAL_MIN},}(?![A-Za-z0-9_])`),
       "run_ id literal",
     ],
-    [/(?<![A-Za-z0-9])[A-Z0-9_]*ASSISTANT_ID[A-Z0-9_]*/, "ASSISTANT_ID env var"],
+    // the prefix is bounded: an unbounded run backtracks quadratically on a
+    // long line of underscores, minutes per MB
+    [/(?<![A-Za-z0-9])[A-Z0-9_]{0,64}ASSISTANT_ID/, "ASSISTANT_ID env var"],
   ];
 
   // Meaningless without OpenAI context in the same file; see ASSISTANTS_FILE_GATE.
@@ -117,7 +121,7 @@ function assistantsMatchers(row: RegistryRow): Matcher[] {
  * they only count inside a string literal. `davinci`, `babbage` and `o1` all
  * produced false findings on a real repo before this.
  */
-function isDistinctiveId(id: string): boolean {
+export function isDistinctiveId(id: string): boolean {
   if (/[/.]/.test(id)) return true; // path- or dotted-shaped, e.g. /v1/assistants
   return id.length >= 6 && /\d/.test(id) && /-/.test(id);
 }

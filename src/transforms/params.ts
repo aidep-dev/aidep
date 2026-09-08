@@ -10,6 +10,8 @@
  * (removing them would orphan later uses or corrupt prose).
  */
 
+import { escapeRegExp } from "../scanner/patterns.ts";
+
 export interface SamplingRemoval {
   content: string;
   /** 1-based line numbers in the input content */
@@ -25,7 +27,7 @@ const VAL = String.raw`-?(?:\d+(?:\.\d+)?|\.\d+)`;
  * `(?!=)` skips `==` comparisons.
  */
 function keySrc(param: string): string {
-  return String.raw`(?<![.\w$])(["']?)${param}\1\s*[:=](?!=)`;
+  return String.raw`(?<![.\w$])(["']?)${escapeRegExp(param)}\1\s*[:=](?!=)`;
 }
 
 /** Index where a line comment begins (`#` or `//` outside a string), or the

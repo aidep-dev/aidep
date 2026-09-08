@@ -136,7 +136,9 @@ function commitResults(resultsPath) {
   git("config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com");
   git("add", resultsPath);
   git("commit", "-m", "aidep: record eval results");
-  git("push", "origin", "HEAD");
+  // the checkout keeps no credentials, so the push carries the job token itself
+  const auth = Buffer.from(`x-access-token:${process.env.GITHUB_TOKEN ?? ""}`).toString("base64");
+  git("-c", `http.extraheader=AUTHORIZATION: basic ${auth}`, "push", "origin", "HEAD");
 }
 
 try {
