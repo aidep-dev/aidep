@@ -4,10 +4,20 @@ import { markOnboarded, sql, upsertInstallation, upsertRepo } from "../src/db/in
 import { migrate } from "../src/db/migrate.ts";
 import { GET as confirmPage, POST as confirmRoute } from "../app/api/notify/confirm/route.ts";
 import { GET as stopPage, POST as stopRoute } from "../app/api/notify/stop/route.ts";
-import { confirmAddress, confirmUrl, sendDueNotifications, stopUrl, upgradeAlert, type Mail, type Mailer } from "../src/notify.ts";
+import {
+  confirmAddress,
+  confirmUrl,
+  repoScope,
+  sendDueNotifications,
+  stopUrl,
+  upgradeAlert,
+  type Mail,
+  type Mailer,
+} from "../src/notify.ts";
 import { MINI_REGISTRY } from "./mini-registry.ts";
 
 process.env.SESSION_SECRET ??= "test-session-secret";
+process.env.MAIL_SECRET ??= "test-mail-secret";
 
 // id range owned by this file: installations 80xx, repos 81xx
 const INST = 8001;
@@ -49,8 +59,8 @@ beforeEach(async () => {
   await sql`delete from suppressed_addresses where email like ${`%@${DOMAIN}`}`;
   // the exposure and waitlist cases start from confirmed addresses; the
   // confirmation flow has its own cases below
-  await confirmAddress(OWNER);
-  await confirmAddress(WAITER);
+  await confirmAddress(OWNER, repoScope(REPO));
+  await confirmAddress(WAITER, "waitlist");
   await upsertInstallation(INST, "acme");
   await upsertRepo({ id: REPO, installationId: INST, owner: "acme", name: "bot", defaultBranch: "main" });
   await upsertRepo({ id: REPO_SILENT, installationId: INST, owner: "acme", name: "quiet", defaultBranch: "main" });
@@ -97,6 +107,24 @@ describe("exposure mail", () => {
     expect(mails.every((m) => !m.text.includes("acme/quiet"))).toBe(true);
   });
 
+  it("announces an event once, then once more when its date enters the 30-day window", async () => {
+    const { mails, mailer } = collect();
+    const digests = () => mails.filter((m) => m.to === OWNER);
+    // gpt-4-turbo dies 2026-10-23: 68 days out today, announced now with the urgent assistants row
+    expect((await sendDueNotifications({ mailer, rows: MINI_REGISTRY, now: TODAY })).exposure).toBe(1);
+    expect(digests()[0].text).toContain("gpt-4-turbo");
+    // 33 days out: nothing
+    expect((await sendDueNotifications({ mailer, rows: MINI_REGISTRY, now: "2026-09-20" })).exposure).toBe(0);
+    // 29 days out: the reminder, that row alone, with the urgent subject
+    expect((await sendDueNotifications({ mailer, rows: MINI_REGISTRY, now: "2026-09-24" })).exposure).toBe(1);
+    expect(digests()).toHaveLength(2);
+    expect(digests()[1].subject).toBe("acme/bot: gpt-4-turbo dies 2026-10-23 (29 days)");
+    expect(digests()[1].text).not.toContain("assistants");
+    // and never a third time
+    expect((await sendDueNotifications({ mailer, rows: MINI_REGISTRY, now: "2026-10-01" })).exposure).toBe(0);
+    expect(digests()).toHaveLength(2);
+  });
+
   it("records nothing when the mailer throws, so the next run retries", async () => {
     await expect(
       sendDueNotifications({ mailer: async () => { throw new Error("smtp down"); }, rows: MINI_REGISTRY, now: TODAY }),
@@ -129,15 +157,17 @@ describe("confirmation", () => {
     expect(mails).toHaveLength(1);
 
     // the link itself is a page with one button: a scanner fetching it confirms nothing
-    const page = await confirmPage(new Request(confirmUrl(NEW)));
+    const link = mails[0].text.split("\n")[2];
+    expect(link).toBe(confirmUrl(NEW, repoScope(REPO)));
+    const page = await confirmPage(new Request(link));
     expect(page.status).toBe(200);
     expect(page.headers.get("content-type")).toContain("text/html");
     expect(await page.text()).toContain('<form method="post">');
     expect(await sql`select 1 from confirmed_addresses where email = ${NEW.toLowerCase()}`).toHaveLength(0);
 
-    const res = await confirmRoute(new Request(confirmUrl(NEW), { method: "POST" }));
+    const res = await confirmRoute(new Request(link, { method: "POST" }));
     expect(res.status).toBe(200);
-    expect(await res.text()).toContain("when a scan finds a new exposure or a retirement date gets close, and for nothing else. Remove the address from .github/aidep.json");
+    expect(await res.text()).toContain("when a scan of acme/bot finds a new exposure or a retirement is inside 30 days, and for nothing else. Remove the address from .github/aidep.json");
     const third = await sendDueNotifications({ mailer, rows: MINI_REGISTRY, now: TODAY });
     expect(third.exposure).toBe(1);
     expect(mails[1].to).toBe(NEW.toLowerCase());
@@ -145,7 +175,7 @@ describe("confirmation", () => {
   });
 
   it("rejects a forged or mismatched token", async () => {
-    const good = new URL(confirmUrl(NEW));
+    const good = new URL(confirmUrl(NEW, repoScope(REPO)));
     const forged = new URL(good);
     forged.searchParams.set("t", good.searchParams.get("t")!.replace(/.$/, (c) => (c === "A" ? "B" : "A")));
     expect((await confirmRoute(new Request(forged, { method: "POST" }))).status).toBe(400);
@@ -153,9 +183,50 @@ describe("confirmation", () => {
     const swapped = new URL(good);
     swapped.searchParams.set("e", `other@${DOMAIN}`);
     expect((await confirmRoute(new Request(swapped, { method: "POST" }))).status).toBe(400);
+    // a link for one repo confirms no other repo and not the waitlist
+    const rescoped = new URL(good);
+    rescoped.searchParams.set("s", repoScope(REPO_SILENT));
+    expect((await confirmRoute(new Request(rescoped, { method: "POST" }))).status).toBe(400);
+    rescoped.searchParams.set("s", "waitlist");
+    expect((await confirmRoute(new Request(rescoped, { method: "POST" }))).status).toBe(400);
+    // and the stop link, same secret, cannot confirm
+    const stopAsConfirm = new URL(good);
+    stopAsConfirm.searchParams.set("t", new URL(stopUrl(NEW)).searchParams.get("t")!);
+    expect((await confirmRoute(new Request(stopAsConfirm, { method: "POST" }))).status).toBe(400);
     expect((await confirmRoute(new Request("http://x/api/notify/confirm", { method: "POST" }))).status).toBe(400);
     const rows = await sql`select 1 from confirmed_addresses where email like ${`%@${DOMAIN}`} and email not in (${OWNER}, ${WAITER})`;
     expect(rows).toHaveLength(0);
+  });
+
+  it("consent is per repo: a second repo asks again, and a waitlist confirmation covers no repo", async () => {
+    await markOnboarded(REPO_SILENT, AidepConfigSchema.parse({ notify: [OWNER] }));
+    const { mails, mailer } = collect();
+    const first = await sendDueNotifications({ mailer, rows: MINI_REGISTRY, now: TODAY });
+    expect(first).toEqual({ exposure: 1, waitlist: 0, confirmations: 1 });
+    const ask = mails.find((m) => m.subject.startsWith("Confirm"))!;
+    expect(ask.to).toBe(OWNER);
+    expect(ask.text).toContain("acme/quiet");
+    expect(new URL(ask.text.split("\n")[2]).searchParams.get("s")).toBe(repoScope(REPO_SILENT));
+
+    await markOnboarded(REPO_SILENT, AidepConfigSchema.parse({ notify: [WAITER] }));
+    const second = await sendDueNotifications({ mailer, rows: MINI_REGISTRY, now: TODAY });
+    expect(second.confirmations).toBe(1);
+    expect(mails.at(-1)!.to).toBe(WAITER);
+    expect(mails.at(-1)!.subject).toBe("Confirm your address for aidep");
+  });
+
+  it("a link signed under the previous mail secret still works after a rotation", async () => {
+    const before = confirmUrl(NEW, repoScope(REPO));
+    process.env.MAIL_SECRET_PREVIOUS = process.env.MAIL_SECRET;
+    process.env.MAIL_SECRET = "rotated-mail-secret";
+    try {
+      expect(confirmUrl(NEW, repoScope(REPO))).not.toBe(before);
+      expect((await confirmRoute(new Request(before, { method: "POST" }))).status).toBe(200);
+    } finally {
+      process.env.MAIL_SECRET = process.env.MAIL_SECRET_PREVIOUS;
+      delete process.env.MAIL_SECRET_PREVIOUS;
+    }
+    expect((await confirmRoute(new Request(before, { method: "POST" }))).status).toBe(200);
   });
 
   it("asks a waitlist address to confirm before any date mail", async () => {
@@ -293,13 +364,14 @@ describe("confirm response", () => {
   it("tells a waitlist address about dates, a notify address about the config file", async () => {
     const w = `curious@${DOMAIN}`;
     await sql`insert into interest (email, source) values (${w}, 'landing-waitlist')`;
-    const waitlist = await confirmRoute(new Request(confirmUrl(w), { method: "POST" }));
+    const waitlist = await confirmRoute(new Request(confirmUrl(w, "waitlist"), { method: "POST" }));
     expect(await waitlist.text()).toBe(
       `Confirmed. aidep will write to ${w} when a retirement date is inside 14 days, and for nothing else. Every mail links to a stop button.\n`,
     );
-    const notify = await (await confirmRoute(new Request(confirmUrl(OWNER), { method: "POST" }))).text();
-    expect(notify).toContain("when a scan finds a new exposure or a retirement date gets close, and for nothing else. Remove the address from .github/aidep.json to stop");
-    expect(notify).not.toContain("inside 14 days");
+    const notify = await (await confirmRoute(new Request(confirmUrl(OWNER, repoScope(REPO)), { method: "POST" }))).text();
+    expect(notify).toBe(
+      `Confirmed. aidep will write to ${OWNER} when a scan of acme/bot finds a new exposure or a retirement is inside 30 days, and for nothing else. Remove the address from .github/aidep.json to stop, or use the stop button every mail links to.\n`,
+    );
   });
 });
 
