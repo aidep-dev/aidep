@@ -85,17 +85,33 @@ create table if not exists notifications (
   id bigserial primary key,
   kind text not null, -- exposure | waitlist | confirm | operator
   recipient text not null,
-  subject_key text not null, -- exposure: repo_id:registry_id; waitlist: the dies date
+  -- exposure: repo_id:registry_id, and repo_id:registry_id:t30 for the one
+  -- reminder inside 30 days; waitlist: the dies date; confirm: the scope
+  subject_key text not null,
   sent_at timestamptz not null default now(),
   unique (kind, recipient, subject_key)
 );
 
--- Addresses that clicked the confirmation link. Nothing but the one
--- confirmation mail is ever sent to an address that is not in here.
+-- Addresses that clicked a confirmation link, and what for: one repo whose
+-- aidep.json names them ('repo:<repo id>') or the waitlist form ('waitlist').
+-- A row covers that scope only; nothing but the one confirmation mail for a
+-- scope is ever sent to an address not in here for it.
 create table if not exists confirmed_addresses (
-  email text primary key,
-  confirmed_at timestamptz not null default now()
+  email text not null,
+  scope text not null,
+  confirmed_at timestamptz not null default now(),
+  constraint confirmed_addresses_email_scope primary key (email, scope)
 );
+-- The table was keyed on email alone before scopes existed. A row from then
+-- gets a scope nothing matches, so the address is asked again, per scope.
+alter table confirmed_addresses add column if not exists scope text not null default 'unscoped';
+alter table confirmed_addresses alter column scope drop default;
+alter table confirmed_addresses drop constraint if exists confirmed_addresses_pkey;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'confirmed_addresses_email_scope') then
+    alter table confirmed_addresses add constraint confirmed_addresses_email_scope primary key (email, scope);
+  end if;
+end $$;
 
 -- Addresses that clicked the stop link. Nothing is ever sent to an address
 -- in here, the confirmation mail included; the row outranks everything.

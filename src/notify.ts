@@ -14,16 +14,17 @@ import { loadRegistry, type RegistryRow } from "./registry.ts";
  * per recipient (the notifications table is the ledger):
  *
  *   exposure  to the repo's `notify` addresses: every open finding event not
- *             yet announced to that address, plus any event inside the
- *             30-day window, as one digest per repo
+ *             yet announced to that address, and each event once more when
+ *             its date enters the 30-day window, as one digest per repo
  *   waitlist  to addresses left on the landing page: what dies on a date
  *             within 14 days, once per date
  *
  * aidep never opens a PR or an issue it was not asked for; mail goes only to
  * addresses someone typed into a file they merged or a form they submitted,
- * and only after that address clicked a confirmation link: the person who
- * typed it is not always the person who receives it (security review
- * 2026-08-21, findings 1 and 2). One confirmation mail per address, ever.
+ * and only after that address clicked a confirmation link for that repo or
+ * for the waitlist: the person who typed it is not always the person who
+ * receives it (security review 2026-08-21, findings 1 and 2). One
+ * confirmation mail per address per scope, ever.
  */
 
 export interface Mail {
@@ -63,45 +64,69 @@ const APP_URL = () => process.env.APP_URL ?? "https://aidep.example";
 /** A flood of addresses costs cron runs, not one run's whole Resend quota. */
 const MAX_CONFIRMATIONS_PER_RUN = 25;
 
-/** Stateless confirmation token: HMAC of the lowercased address under the
- * session secret, so the link needs no row and cannot be forged. */
-export function confirmToken(email: string): string {
-  const secret = process.env.SESSION_SECRET;
-  if (!secret) throw new Error("SESSION_SECRET must be set");
-  return createHmac("sha256", secret).update(email.toLowerCase()).digest("base64url");
+/** What a link in a mail is for. The consent scopes are what a
+ * confirmed_addresses row names; "stop" only ever signs the stop link, which
+ * is global. */
+export type ConsentScope = "waitlist" | `repo:${number}`;
+type LinkPurpose = ConsentScope | "stop";
+
+export const repoScope = (repoId: number): ConsentScope => `repo:${repoId}`;
+
+/** MAIL_SECRET signs every link in a mail. It is not the session secret on
+ * purpose: rotating that one after a stolen cookie must not turn every stop
+ * link already sitting in an inbox into a 400. MAIL_SECRET_PREVIOUS keeps
+ * old links working across a rotation of this one. */
+function mailSecrets(): string[] {
+  const current = process.env.MAIL_SECRET;
+  if (!current) throw new Error("MAIL_SECRET must be set");
+  const previous = process.env.MAIL_SECRET_PREVIOUS;
+  return previous ? [current, previous] : [current];
 }
 
-export function confirmTokenMatches(email: string, token: string): boolean {
-  const expected = Buffer.from(confirmToken(email));
+/** Stateless link token: HMAC of the purpose and the lowercased address, so
+ * the link needs no row, cannot be forged, and a confirm link for one repo
+ * confirms nothing else. */
+export function linkToken(email: string, purpose: LinkPurpose, secret = mailSecrets()[0]): string {
+  return createHmac("sha256", secret).update(`${purpose}\n${email.toLowerCase()}`).digest("base64url");
+}
+
+export function linkTokenMatches(email: string, purpose: LinkPurpose, token: string): boolean {
   const got = Buffer.from(token);
-  return got.length === expected.length && timingSafeEqual(got, expected);
+  return mailSecrets().some((secret) => {
+    const expected = Buffer.from(linkToken(email, purpose, secret));
+    return got.length === expected.length && timingSafeEqual(got, expected);
+  });
 }
 
-export function confirmUrl(email: string): string {
+export function confirmUrl(email: string, scope: ConsentScope): string {
   const u = new URL("/api/notify/confirm", APP_URL());
   u.searchParams.set("e", email.toLowerCase());
-  u.searchParams.set("t", confirmToken(email));
+  u.searchParams.set("s", scope);
+  u.searchParams.set("t", linkToken(email, scope));
   return u.toString();
 }
 
-export async function confirmAddress(email: string): Promise<void> {
-  await sql`insert into confirmed_addresses (email) values (${email.toLowerCase()}) on conflict do nothing`;
+export async function confirmAddress(email: string, scope: ConsentScope): Promise<void> {
+  await sql`
+    insert into confirmed_addresses (email, scope) values (${email.toLowerCase()}, ${scope})
+    on conflict do nothing`;
 }
 
-async function confirmedSet(emails: string[]): Promise<Set<string>> {
+async function confirmedSet(emails: string[], scope: ConsentScope): Promise<Set<string>> {
   if (emails.length === 0) return new Set();
   const rows = await sql<{ email: string }[]>`
-    select email from confirmed_addresses where email = any(${emails})`;
+    select email from confirmed_addresses where scope = ${scope} and email = any(${emails})`;
   return new Set(rows.map((r) => r.email));
 }
 
-/** The stop link: GET is a page with one button, POST suppresses. Same HMAC
- * as the confirm link: holding the link proves control of the mailbox, and
- * the row outranks confirmation forever. */
+/** The stop link: GET is a page with one button, POST suppresses. Same secret
+ * as the confirm link under its own purpose, so neither link can stand in for
+ * the other: holding it proves control of the mailbox, and the row outranks
+ * every confirmation forever. */
 export function stopUrl(email: string): string {
   const u = new URL("/api/notify/stop", APP_URL());
   u.searchParams.set("e", email.toLowerCase());
-  u.searchParams.set("t", confirmToken(email));
+  u.searchParams.set("t", linkToken(email, "stop"));
   return u.toString();
 }
 
@@ -122,14 +147,14 @@ async function suppressedSet(emails: string[]): Promise<Set<string>> {
   return new Set(rows.map((r) => r.email));
 }
 
-function confirmMail(to: string, why: string): Mail {
+function confirmMail(to: string, why: string, scope: ConsentScope): Mail {
   return {
     to,
     subject: "Confirm your address for aidep",
     text: [
       `Someone ${why}. If that was you, confirm here and aidep will write when it matters:`,
       "",
-      confirmUrl(to),
+      confirmUrl(to, scope),
       "",
       "If it was not you, do nothing: this is the only mail this address gets until the link is clicked.",
       `Never want aidep mail at this address? Stop it for good with one button here: ${stopUrl(to)}`,
@@ -199,6 +224,13 @@ async function alreadySent(kind: string, recipient: string, keys: string[]): Pro
     select subject_key from notifications
     where kind = ${kind} and recipient = ${recipient} and subject_key = any(${keys})`;
   return new Set(rows.map((r) => r.subject_key));
+}
+
+/** Every ledger key a digest can owe for an event: its first announcement,
+ * and one reminder once the date is inside the 30-day window. */
+function eventKeys(e: ExposureRow, today: string): string[] {
+  const first = `${e.repo_id}:${e.registry_id}`;
+  return isUrgentEvent(e.dies, today) ? [first, `${first}:t30`] : [first];
 }
 
 async function record(kind: string, recipient: string, keys: string[]): Promise<void> {
@@ -275,27 +307,30 @@ export async function sendDueNotifications(opts: {
     byRepo.set(e.repo_id, list);
   }
   const notifyAddresses = [...new Set([...byRepo.values()].flatMap((es) => es[0].notify.map((a) => a.toLowerCase())))];
-  const confirmed = await confirmedSet(notifyAddresses);
   const suppressed = await suppressedSet(notifyAddresses);
   let confirmations = 0;
   for (const events of byRepo.values()) {
     const repo = events[0];
-    for (const to of repo.notify.map((a) => a.toLowerCase())) {
+    const scope = repoScope(repo.repo_id);
+    const addresses = repo.notify.map((a) => a.toLowerCase());
+    const confirmed = await confirmedSet(addresses, scope);
+    for (const to of addresses) {
       if (suppressed.has(to)) continue;
       if (!confirmed.has(to)) {
-        if (confirmations < MAX_CONFIRMATIONS_PER_RUN && (await alreadySent("confirm", to, ["confirm"])).size === 0) {
-          await mailer(confirmMail(to, `put this address in .github/aidep.json on ${repo.owner}/${repo.name}`));
-          await record("confirm", to, ["confirm"]);
+        if (confirmations < MAX_CONFIRMATIONS_PER_RUN && (await alreadySent("confirm", to, [scope])).size === 0) {
+          await mailer(confirmMail(to, `put this address in .github/aidep.json on ${repo.owner}/${repo.name}`, scope));
+          await record("confirm", to, [scope]);
           confirmations++;
         }
         continue;
       }
-      const keys = events.map((e) => `${e.repo_id}:${e.registry_id}`);
-      const sent = await alreadySent("exposure", to, keys);
-      const fresh = events.filter((e) => !sent.has(`${e.repo_id}:${e.registry_id}`));
-      if (fresh.length === 0) continue;
-      await mailer(exposureMail(to, repo, fresh, today, registry));
-      await record("exposure", to, fresh.map((e) => `${e.repo_id}:${e.registry_id}`));
+      const sent = await alreadySent("exposure", to, events.flatMap((e) => eventKeys(e, today)));
+      const owed = events
+        .map((e) => [e, eventKeys(e, today).filter((k) => !sent.has(k))] as const)
+        .filter(([, keys]) => keys.length > 0);
+      if (owed.length === 0) continue;
+      await mailer(exposureMail(to, repo, owed.map(([e]) => e), today, registry));
+      await record("exposure", to, owed.flatMap(([, keys]) => keys));
       exposure++;
     }
   }
@@ -318,14 +353,14 @@ export async function sendDueNotifications(opts: {
       select distinct lower(email) as email from interest
       where email is not null and source = 'landing-waitlist'`
   ).map((r) => r.email);
-  const confirmedWaiters = await confirmedSet(emails);
+  const confirmedWaiters = await confirmedSet(emails, "waitlist");
   const suppressedWaiters = await suppressedSet(emails);
   for (const email of emails) {
     if (suppressedWaiters.has(email)) continue;
     if (!confirmedWaiters.has(email)) {
-      if (confirmations < MAX_CONFIRMATIONS_PER_RUN && (await alreadySent("confirm", email, ["confirm"])).size === 0) {
-        await mailer(confirmMail(email, "left this address on aidep.dev asking to hear when a retirement date gets close"));
-        await record("confirm", email, ["confirm"]);
+      if (confirmations < MAX_CONFIRMATIONS_PER_RUN && (await alreadySent("confirm", email, ["waitlist"])).size === 0) {
+        await mailer(confirmMail(email, "left this address on aidep.dev asking to hear when a retirement date gets close", "waitlist"));
+        await record("confirm", email, ["waitlist"]);
         confirmations++;
       }
       continue;

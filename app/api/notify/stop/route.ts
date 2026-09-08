@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { confirmTokenMatches, suppressAddress } from "../../../../src/notify.ts";
+import { linkTokenMatches, suppressAddress } from "../../../../src/notify.ts";
 
 /**
  * The stop link in every mail footer and List-Unsubscribe header. GET is a
@@ -8,16 +8,17 @@ import { confirmTokenMatches, suppressAddress } from "../../../../src/notify.ts"
  * suppresses it permanently: no digests, no waitlist mail, not even the
  * confirmation mail. The POST comes from that button or from the mail
  * client's own unsubscribe button (RFC 8058, body `List-Unsubscribe=One-Click`);
- * both carry e and t in the URL, so the body is never read. Same token as
- * the confirm link; holding the link proves control of the mailbox. Plain
- * text back from the POST.
+ * both carry e and t in the URL, so the body is never read. Same secret as
+ * the confirm link under the "stop" purpose, so a confirm link cannot stop
+ * anyone; holding the link proves control of the mailbox. Plain text back
+ * from the POST.
  */
 const Query = z.object({ e: z.string().email().max(200), t: z.string().min(1).max(200) });
 
 function addressFrom(req: Request): string | null {
   const url = new URL(req.url);
   const q = Query.safeParse({ e: url.searchParams.get("e"), t: url.searchParams.get("t") });
-  return q.success && confirmTokenMatches(q.data.e, q.data.t) ? q.data.e.toLowerCase() : null;
+  return q.success && linkTokenMatches(q.data.e, "stop", q.data.t) ? q.data.e.toLowerCase() : null;
 }
 
 const invalid = () => new Response("that link is not valid", { status: 400 });
