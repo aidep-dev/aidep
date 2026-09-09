@@ -1,11 +1,8 @@
 name: recount
-# The Assistants API shuts down 2026-08-26. Count public exposure on the day
-# and the two after it (ROADMAP.md, Phase 1), and commit each count so the
-# evidence is dated by git rather than by memory. Dispatch it by hand for a
-# baseline on any other day.
+# Count public exposure and commit the number so the evidence is dated by git
+# rather than by memory. Dispatch by hand; the Assistants shutdown window
+# (2026-08-26 to 28) that this used to fire on has passed.
 on:
-  schedule:
-    - cron: "0 18 26-28 8 *"
   workflow_dispatch:
 permissions:
   contents: write
