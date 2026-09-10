@@ -171,6 +171,23 @@ amber with a transparent bite, so the silhouette reads on light and dark chrome
 alike and it survives
 16px. The one warm dot in a tab bar of white glyphs on dark squares.
 
+**Touch icon (`app/apple-icon.png`).** The same mark in amber on dark paper,
+full bleed at 180px. The file is opaque; iOS paints a transparent home screen
+tile black, which would drop the paper out from under the mark. The vector
+master is `brand/apple-touch.svg`.
+
+**Share card (`app/opengraph-image.png`).** 1200x630 on dark paper. The lockup
+in ink, a `rule` hairline under it, the hero question in the display face, the
+domain in mono `ink-muted`. A flat PNG rather than a generated one, so no font
+fetch at build time can fail and leave the card set in a face the site retired.
+The alt text lives beside it in `opengraph-image.alt.txt`, with no trailing
+newline, which Next would carry into the tag.
+
+**Off-site assets (`brand/`).** The same mark exported for the surfaces the
+site does not serve: the GitHub org avatar, the App badge on transparent, and
+a 1280x640 card for each repo. The three `.svg` files are the masters. If the
+mark in `app/mark.tsx` ever changes, these change with it.
+
 **Panel (`.panel`, `.panel-head`).** `paper-raised`, 1px `rule` border, 2px
 radius. Optional head strip with a `.label`. Holds tables, code, the command
 box, and the asides beside each step. No shadow.
