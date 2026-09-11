@@ -55,3 +55,6 @@ next-env.d.ts
 # verify-aidep-github-app: run records and proof artifacts
 /.claude/skills/verify-aidep-github-app/.run/
 /.claude/skills/verify-aidep-github-app/artifacts/
+
+# serena MCP server state
+.serena/
