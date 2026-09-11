@@ -51,3 +51,7 @@ next-env.d.ts
 # verify-aidep: run records and proof artifacts
 /.claude/skills/verify-aidep/.run/
 /.claude/skills/verify-aidep/artifacts/
+
+# verify-aidep-github-app: run records and proof artifacts
+/.claude/skills/verify-aidep-github-app/.run/
+/.claude/skills/verify-aidep-github-app/artifacts/
