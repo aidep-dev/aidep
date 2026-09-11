@@ -1,0 +1,29 @@
+name: Something else broke
+description: The site, the dashboard, the CLI, the App install, or mail did not do what it says.
+labels: [bug]
+body:
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options:
+        - aidep.dev (a page or the register)
+        - The dashboard
+        - npx aidep (the CLI)
+        - Installing the App or the onboarding PR
+        - Mail (confirmation, digest, stop link)
+        - The API under /api/
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you saw, and what you expected instead. An error message or a screenshot helps.
+    validations:
+      required: true
+  - type: input
+    id: when
+    attributes:
+      label: When
+      placeholder: 2026-09-11, about 14:00 UTC

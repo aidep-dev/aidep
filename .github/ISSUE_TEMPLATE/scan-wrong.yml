@@ -1,0 +1,42 @@
+name: The scan missed something, or flagged something that is alive
+description: A call to a retiring model or API that aidep did not report, or a report on a call that is fine.
+labels: [scanner]
+body:
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where you saw it
+      options:
+        - npx aidep (the CLI)
+        - The onboarding PR
+        - The dashboard
+        - A migration PR
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Which way is it wrong
+      options:
+        - Missed: the call is there and aidep did not report it
+        - Flagged: aidep reported a call that is not to a retiring model or API
+    validations:
+      required: true
+  - type: textarea
+    id: line
+    attributes:
+      label: The line of code
+      description: One line is enough. Strip anything private; the identifier and the shape of the call are what matter.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: registry
+    attributes:
+      label: Registry row, if you know it
+      placeholder: openai:model:gpt-4-turbo
+  - type: input
+    id: version
+    attributes:
+      label: aidep version, or the scan date from the report
+      placeholder: 0.1.0, or 2026-09-11

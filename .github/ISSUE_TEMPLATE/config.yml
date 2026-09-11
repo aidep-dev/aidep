@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: A deprecation row is wrong or missing
+    url: https://github.com/aidep-dev/aidep-registry/issues/new?template=file-a-row.yml
+    about: Retirement dates, replacements and statuses live in the registry repo. File the row there.
+  - name: Security
+    url: https://github.com/aidep-dev/aidep/blob/master/SECURITY.md
+    about: A vulnerability goes to security@aidep.dev, never to a public issue.
