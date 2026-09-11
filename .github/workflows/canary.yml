@@ -1,0 +1,68 @@
+name: canary
+# The GitHub App path has no local instance: production and the canary repo
+# ricardodreyes/aidep-canary are the only place it runs. Every Monday this
+# commits a one-line probe to the canary, ticks the onboarding PR's refresh
+# box, and reads the scan back, the recipe in
+# .claude/skills/verify-aidep-github-app/features/rescan.md. A red run opens
+# one issue labelled canary, or bumps the open one. CANARY_TOKEN is a
+# fine-grained PAT with contents and pull requests read and write on the
+# canary; without it the first step fails and nothing else runs.
+on:
+  schedule:
+    - cron: "31 13 * * 1"
+  workflow_dispatch:
+permissions: {}
+jobs:
+  rescan:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ secrets.CANARY_TOKEN }}
+      CANARY: .claude/skills/verify-aidep-github-app/canary.sh
+    steps:
+      - uses: actions/checkout@v4
+      - name: The token that can push to the canary
+        run: |
+          [ -n "$GH_TOKEN" ] || { echo "CANARY_TOKEN is not set" >&2; exit 1; }
+          echo "HAS_TOKEN=true" >> "$GITHUB_ENV"
+      - name: Doctor
+        run: |
+          bash "$CANARY" run
+          bash "$CANARY" doctor
+      - name: Rescan recipe
+        run: |
+          ART=$(bash "$CANARY" art)
+          bash "$CANARY" probe-add | tee "$ART/rescan-probe-add.txt"
+          bash "$CANARY" refresh > "$ART/rescan-found-with-probe.md"
+          grep -F '| verify/probe.py | 7 | gpt-4o-transcribe |' "$ART/rescan-found-with-probe.md"
+          bash "$CANARY" probe-remove | tee "$ART/rescan-probe-remove.txt"
+          bash "$CANARY" refresh > "$ART/rescan-found-clean.md"
+          [ "$(grep -c 'verify/probe.py' "$ART/rescan-found-clean.md")" = 0 ]
+      - name: Leave the canary clean
+        if: always() && env.HAS_TOKEN == 'true'
+        run: |
+          bash "$CANARY" probe-remove
+          bash "$CANARY" untick
+          bash "$CANARY" doctor
+      - name: Keep the evidence
+        if: always() && env.HAS_TOKEN == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: canary-${{ github.run_id }}
+          path: .claude/skills/verify-aidep-github-app/artifacts/
+          if-no-files-found: ignore
+      - name: Open or bump the canary issue
+        if: failure() && env.HAS_TOKEN == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh label create canary --description "the weekly canary rescan is red" --force
+          number=$(gh issue list --label canary --state open --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "Still red: $RUN_URL"
+          else
+            gh issue create --title "canary: the weekly rescan on ricardodreyes/aidep-canary is red" --label canary --body "Run: $RUN_URL"
+          fi

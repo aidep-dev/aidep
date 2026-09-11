@@ -62,9 +62,14 @@ art)
   ;;
 
 doctor)
+  command -v gh >/dev/null 2>&1 || { fail "gh is not installed here; nothing below can run"; exit 1; }
   if login=$(gh api user --jq .login 2>/dev/null); then pass "gh is signed in as $login"; else fail "gh cannot reach GitHub as anyone"; fi
   code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 https://api.github.com/apps/aidep-dev || true)
-  if [ "$code" = 200 ]; then pass "the aidep-dev App is public"; else fail "api.github.com/apps/aidep-dev answered $code: a private App installs on its own org only"; fi
+  case "$code" in
+    200) pass "the aidep-dev App is public" ;;
+    404) fail "the aidep-dev App is private: it installs on its own org only" ;;
+    *) fail "api.github.com/apps/aidep-dev answered ${code:-nothing}: no route to GitHub from here" ;;
+  esac
   push=$(gh api "repos/$CANARY" --jq .permissions.push 2>/dev/null || true)
   if [ "$push" = true ]; then pass "gh can push to $CANARY"; else fail "gh cannot push to $CANARY (push=${push:-unreadable})"; fi
   n=$(onboarding_pr 2>/dev/null || true)
@@ -84,7 +89,11 @@ doctor)
   fi
   if [ -z "$(probe_sha)" ]; then pass "no probe on main"; else fail "$PROBE is on main from an earlier run (canary.sh probe-remove)"; fi
   code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 https://aidep.dev/api/registry || true)
-  if [ "$code" = 200 ]; then pass "aidep.dev/api/registry answers 200"; else fail "aidep.dev/api/registry answered $code"; fi
+  case "$code" in
+    200) pass "aidep.dev/api/registry answers 200" ;;
+    000|"") fail "no route to aidep.dev from here" ;;
+    *) fail "aidep.dev/api/registry answered $code" ;;
+  esac
   health=$(gh run list --repo aidep-dev/aidep --workflow health.yml --limit 1 --json conclusion,createdAt --jq '.[0] | "\(.conclusion) at \(.createdAt)"' 2>/dev/null || true)
   case "$health" in
     success*) pass "last health probe: $health" ;;

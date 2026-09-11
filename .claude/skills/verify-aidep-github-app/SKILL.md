@@ -70,3 +70,4 @@ Proof standards. Drive the real trigger: a commit on main, the checkbox, the das
 - GitHub asks the account owner to re-authenticate before it shows the App's settings pages; that step is theirs.
 - The App has two installations sending webhooks to the same production: the aidep-dev org, for the product repo, and ricardodreyes, for the canary.
 - `features/README.md` lists the open app bugs this map knows about, each with the check that says it is still open. Output one of them explains is the bug, not drift in the skill.
+- A claude.ai routine's sandbox has no `gh` and its egress proxy refuses github.com and aidep.dev (seen 2026-09-11), so nothing here runs there. The weekly run is `.github/workflows/canary.yml`.
