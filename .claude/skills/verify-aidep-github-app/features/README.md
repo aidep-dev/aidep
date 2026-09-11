@@ -23,6 +23,10 @@ The maintained source for verifying what the App does on a real repo. Read this 
 - Save every readout under `$ART` as `<feature>-<step>.<ext>` and name the entry point that produced it.
 - Report an unreachable path with the command tried and the unmet precondition. A path nobody drove is not verified through a different one.
 
+## The weekly run
+
+`.github/workflows/canary.yml` runs Doctor and the rescan recipe every Monday with a fine-grained PAT (`CANARY_TOKEN`) and opens or bumps an issue labelled `canary` when it goes red. Evidence lands in the run's artifact. A red issue is the cue to run this skill by hand with the database; the map itself changes only when someone drives it.
+
 ## Feature entry contract
 
 Each feature file has an H1, one paragraph on the user-visible behavior, then exactly four H2s in this order: `Sub-features`, `How to get to it (user POV)`, `Driving it with verify-aidep-github-app`, `Gotchas`. The driving section starts with `Preconditions:` and pairs each user action with the exact command and the observable result. A file whose driving section opens with "Not driven yet" was written from source; its first run replaces that line with the date and evidence.
