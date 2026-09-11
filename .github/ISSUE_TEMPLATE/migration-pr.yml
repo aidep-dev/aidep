@@ -1,0 +1,42 @@
+name: A migration PR changed code wrongly
+description: aidep rewrote something it should have left alone, or rewrote it into something that does not work. This is the bug we most want to hear about.
+labels: [transforms]
+body:
+  - type: markdown
+    attributes:
+      value: aidep is meant to leave any shape it does not recognize untouched and name it in the PR's checklist instead. A wrong rewrite means a shape got past that rule.
+  - type: input
+    id: event
+    attributes:
+      label: The event the PR was for
+      description: The registry id in the PR's agent brief, or the model or API named in the title.
+      placeholder: openai:endpoint:assistants-api
+    validations:
+      required: true
+  - type: textarea
+    id: before
+    attributes:
+      label: The code before the PR
+      description: The lines aidep changed, as they were. Strip anything private.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: after
+    attributes:
+      label: What the PR turned them into
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What it should have done
+      description: The right rewrite, or "left it alone and put it in the checklist".
+    validations:
+      required: true
+  - type: input
+    id: sdk
+    attributes:
+      label: Language and SDK version
+      placeholder: Python, openai 3.13.0

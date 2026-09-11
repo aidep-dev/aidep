@@ -2,6 +2,8 @@
 
 Dependabot for AI APIs. aidep knows every OpenAI, Anthropic, and Google model and API deprecation, scans a GitHub repo for exposure, opens the migration PR, and proves the migration held by running the repo's own prompts on the old and new model in the repo's own CI.
 
+Live at [aidep.dev](https://aidep.dev). Install the GitHub App from there, or run `npx aidep .` for a local scan with no account.
+
 Two repos make the product:
 
 - **aidep** (this repo): one Next.js app. GitHub App webhook, scan pipeline, migration PR generation, eval pack generation, dashboard, public pages.
@@ -18,7 +20,7 @@ cd aidep
 npm ci
 docker compose up -d          # Postgres on localhost:5433
 node src/db/migrate.ts        # applies db/schema.sql (idempotent)
-npm test                      # 190 tests, needs the database
+npm test                      # needs the database
 ```
 
 Scan any local directory without any GitHub setup:
@@ -49,7 +51,7 @@ node src/seed.ts              # regenerate registry/*.json from the fixtures
 1. GitHub: Settings → Developer settings → GitHub Apps → New GitHub App.
 2. Webhook URL: `<APP_URL>/api/github/webhook` with a secret you generate. During development, point a tunnel (cloudflared, ngrok, smee) at `localhost:3000` and use the tunnel URL as `APP_URL`.
 3. Permissions, exactly three: Metadata read, Contents read and write, Pull requests read and write. Subscribe to events: Push, Pull request.
-4. Enable "Request user authorization (OAuth) during installation" is not required; the dashboard uses the App's OAuth credentials with the plain web flow. Set the callback URL to `<APP_URL>/api/auth/callback`. Turn on "Expire user authorization tokens" in the App's General settings: sign-out revokes the user token best effort, and that setting is the eight-hour backstop.
+4. Leave "Request user authorization (OAuth) during installation" off; the dashboard uses the App's OAuth credentials with the plain web flow. Set the callback URL to `<APP_URL>/api/auth/callback`. Turn on "Expire user authorization tokens" in the App's General settings: sign-out revokes the user token best effort, and that setting is the eight-hour backstop.
 5. Generate a private key. Fill `.env.local` from `env.example` (private key with `\n` for newlines).
 6. `npm run dev`, install the App on a repo you own, and the onboarding PR with the scan report arrives in the repo.
 
@@ -59,7 +61,7 @@ The onboarding PR is the whole first act: merge it to activate, close it to decl
 
 The app is a standard Next.js deployment (built with `--webpack`) plus a Postgres. `vercel.json` ships a 10-minute cron hitting `/api/cron/drain` (set `CRON_SECRET`). Set `REGISTRY_SOURCE` to a raw URL serving the registry JSON, e.g. `https://raw.githubusercontent.com/aidep-dev/aidep-registry/master/registry`. The registry repo needs no deployment: its daily GitHub Actions cron (`.github/workflows/poll.yml`) opens a review PR against itself when a provider page changes; merging the PR is the approval step.
 
-Two things worth knowing before you pick hosts. Vercel's Hobby plan is non-commercial only, so charging anyone means Pro. And Vercel Postgres no longer exists (those databases moved to Neon in Dec 2024); a findings-only store is tiny, but Neon's free tier autosuspends in a way that does not suit webhook traffic, so Supabase Free is the easier default.
+Two things worth knowing before you pick hosts. Vercel's Hobby plan is non-commercial only, so charging anyone means Pro. And Vercel Postgres no longer exists (those databases moved to Neon in Dec 2024). aidep.dev runs on Neon: the free plan gives 100 compute hours a month per project and suspends the database when they run out, and the 10-minute cron keeps the compute awake about a third of the day, so plan on the paid tier once real repos install.
 
 Set `GITHUB_SEARCH_TOKEN` to a token with public read access if you want the `/dead` page to fill in. It drives a daily code-search snapshot of public exposure counts; leave it unset and the page simply stays empty.
 
