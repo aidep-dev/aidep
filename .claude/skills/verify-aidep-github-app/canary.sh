@@ -68,6 +68,7 @@ doctor)
   case "$code" in
     200) pass "the aidep-dev App is public" ;;
     404) fail "the aidep-dev App is private: it installs on its own org only" ;;
+    403) echo "SKIP  api.github.com rate-limits this address without a token, so App visibility went unchecked; from a machine with a quota the same call answers 200" ;;
     *) fail "api.github.com/apps/aidep-dev answered ${code:-nothing}: no route to GitHub from here" ;;
   esac
   push=$(gh api "repos/$CANARY" --jq .permissions.push 2>/dev/null || true)

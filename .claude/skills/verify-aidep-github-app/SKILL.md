@@ -31,7 +31,7 @@ It prints the absolute artifacts dir for the run; `canary.sh art` prints it agai
 
     bash .claude/skills/verify-aidep-github-app/canary.sh doctor
 
-Read-only. One PASS or FAIL line each: gh reaches GitHub as someone; the App is public, because a private App installs on its own org only; gh can push to the canary; the onboarding PR (head `aidep/configure`) is merged and its refresh box is unticked; `.github/aidep.json` on main parses; no probe file is left on main; aidep.dev/api/registry answers 200; the last `health.yml` run on aidep-dev/aidep succeeded. Non-zero exit on any FAIL. Run it first, and again whenever an answer looks wrong.
+Read-only. One PASS or FAIL line each: gh reaches GitHub as someone; the App is public, because a private App installs on its own org only (this one reads SKIP where api.github.com rate-limits an unauthenticated call, which it does from Actions runners); gh can push to the canary; the onboarding PR (head `aidep/configure`) is merged and its refresh box is unticked; `.github/aidep.json` on main parses; no probe file is left on main; aidep.dev/api/registry answers 200; the last `health.yml` run on aidep-dev/aidep succeeded. Non-zero exit on any FAIL. Run it first, and again whenever an answer looks wrong.
 
 ## Drive
 

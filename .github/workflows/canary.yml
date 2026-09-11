@@ -4,7 +4,8 @@ name: canary
 # commits a one-line probe to the canary, ticks the onboarding PR's refresh
 # box, and reads the scan back, the recipe in
 # .claude/skills/verify-aidep-github-app/features/rescan.md. A red run opens
-# one issue labelled canary, or bumps the open one. CANARY_TOKEN is a
+# one issue labelled canary, or bumps the open one; the next green run closes
+# it. CANARY_TOKEN is a
 # fine-grained PAT with contents and pull requests read and write on the
 # canary; without it the first step fails and nothing else runs.
 on:
@@ -52,6 +53,15 @@ jobs:
           name: canary-${{ github.run_id }}
           path: .claude/skills/verify-aidep-github-app/artifacts/
           if-no-files-found: ignore
+      - name: Close the canary issue
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          number=$(gh issue list --label canary --state open --json number --jq '.[0].number // empty')
+          [ -z "$number" ] || gh issue close "$number" --comment "Green again: $RUN_URL"
       - name: Open or bump the canary issue
         if: failure() && env.HAS_TOKEN == 'true'
         env:
