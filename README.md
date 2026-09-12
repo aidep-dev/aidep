@@ -1,3 +1,5 @@
+![aidep, Dependabot for AI APIs](brand/social-aidep.png)
+
 # aidep
 
 Dependabot for AI APIs. aidep knows every OpenAI, Anthropic, and Google model and API deprecation, scans a GitHub repo for exposure, opens the migration PR, and proves the migration held by running the repo's own prompts on the old and new model in the repo's own CI.
