@@ -49,7 +49,7 @@ it to whatever agent you already use.
 
 ## How we work
 
-**One product.** Not a platform, not a suite. One narrow watch until it is good.
+**One product.** One narrow watch until it is good, and nothing beside it.
 
 **We never open a pull request or an issue you did not ask for.** The onboarding PR
 arrives only after you install. Migration PRs are opt-in per finding, from your

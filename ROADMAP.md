@@ -67,8 +67,8 @@ persist findings only: path, line, matched identifier. Never source text.
 
 ## What this is, in one sentence
 
-aidep is not a code fixer. It is a watch and a source of ground truth that hands work to the agent
-you already have, at the moment it matters, with the facts your model does not have.
+aidep is a watch and a source of ground truth that hands work to the agent you already have, at
+the moment it matters, with the facts your model does not have. The rewrite stays the agent's job.
 
 Yes, use your AI. We tell you when, and we tell it what is actually true today.
 
@@ -123,7 +123,7 @@ That is the October post's opening paragraph, written in August.
   Every agent that reads it is a distribution channel we did not have to sell to.
 - The demo, not the argument: ask your AI to fix your deprecated model ids, then check whether what
   it picked is also deprecated. One in six says it will not be.
-- A short strategy page. Not a 200 page operations handbook, there is one person here.
+- A short strategy page. There is one person here, so a 200 page operations handbook can wait.
 - Keep sending hand-written issues. One repo at a time, read first, naming a specific file and
   line, never templated, never scripted, disclosed once, never followed up twice. aidep the bot
   never opens an unrequested PR or issue and never will. That is a product invariant, not a
