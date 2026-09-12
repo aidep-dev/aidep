@@ -7,8 +7,9 @@ npx aidep .
 ```
 
 No account, no token, no write access. The scan runs on your machine; the only network request is
-fetching the [deprecation registry](https://github.com/aidep-dev/aidep-registry), 199 dated rows
-where every date carries the vendor URL it came from. Nothing about your code leaves your machine.
+fetching the [deprecation registry](https://github.com/aidep-dev/aidep-registry), a few hundred
+dated rows where every date carries the vendor URL it came from. Nothing about your code leaves
+your machine.
 
 The output is a markdown report: every dead or dying identifier with file, line, the retirement
 date, and the vendor-named replacement. Replacements are checked against the registry too, because

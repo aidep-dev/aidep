@@ -23,7 +23,7 @@ you do not need a watch. If it is a support queue, you do.
 
 An engineer, usually the one who wrote the integration and now owns it by default.
 They are already using a coding agent and are perfectly capable of doing the
-migration themselves. They are not short on skill, they are short on warning.
+migration themselves. What they are short on is warning.
 
 We are not building for a procurement team, a compliance officer, or an AI platform
 group. If your company has a person whose actual job is tracking model
@@ -52,10 +52,9 @@ deprecation detector to an API gateway is selling coal to Newcastle.
 
 ## What this means for the product
 
-Because the buyer is on a private repo, everything is free on private repos. Public
-versus private is not a value boundary in this category; it is a line that
-Dependabot and Renovate already priced at zero, and charging for it would read as a
-joke to anyone who has configured either.
+Because the buyer is on a private repo, everything is free on private repos. In this
+category, public versus private is a line Dependabot and Renovate already priced at
+zero, and charging for it would read as a joke to anyone who has configured either.
 
 Because the person is already using an agent, we feed the agent rather than compete
 with it.
