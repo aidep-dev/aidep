@@ -1,6 +1,6 @@
 {
   "name": "aidep",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Scan a directory for calls to retired or deprecated OpenAI, Anthropic and Google models and APIs. No account, no token, nothing leaves your machine.",
   "license": "MIT",
   "type": "module",
