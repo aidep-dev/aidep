@@ -1,6 +1,9 @@
 {
   "name": "aidep",
   "version": "0.1.0",
+  "bin": {
+    "aidep": "cli/scan.ts"
+  },
   "license": "MIT",
   "private": true,
   "type": "module",

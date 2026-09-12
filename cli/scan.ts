@@ -7,9 +7,40 @@ import { scanFiles } from "../src/scanner/scan.ts";
 import { renderMarkdownReport } from "../src/scanner/report.ts";
 import { MAX_TARBALL_BYTES, untarToFiles } from "../src/scanner/tarball.ts";
 
+const USAGE = "usage: aidep <local-dir | owner/repo>";
+// owner/repo, where neither part starts with a dot, so ./src and ../x read as paths
+const SLUG = /^[A-Za-z0-9][\w-]*\/[A-Za-z0-9._-]+$/;
+
 const target = process.argv[2];
 if (target === undefined || target === "") {
-  console.error("usage: aidep <local-dir | owner/repo>");
+  console.error(USAGE);
+  process.exit(1);
+}
+if (target === "-h" || target === "--help") {
+  console.log(
+    [
+      USAGE,
+      "",
+      "Scans a directory for calls to retired or deprecated OpenAI, Anthropic and Google",
+      "models and APIs and prints a markdown report. Nothing leaves your machine.",
+      "With GITHUB_TOKEN set, owner/repo scans a GitHub repo by tarball instead.",
+    ].join("\n"),
+  );
+  process.exit(0);
+}
+const isLocal = existsSync(target);
+if (!isLocal && !SLUG.test(target)) {
+  console.error(
+    /[/\\]|^[.~]/.test(target)
+      ? `no such directory: ${target}`
+      : `"${target}" is neither an existing directory nor an owner/repo slug.`,
+  );
+  process.exit(1);
+}
+
+const token = process.env.GITHUB_TOKEN;
+if (!isLocal && (token === undefined || token === "")) {
+  console.error(`GITHUB_TOKEN is not set; it is required to fetch ${target} from GitHub.`);
   process.exit(1);
 }
 
@@ -23,15 +54,10 @@ const rows = await loadRegistry(
   process.env.REGISTRY_SOURCE ?? (existsSync(SIBLING_REGISTRY) ? SIBLING_REGISTRY : PUBLISHED_REGISTRY),
 );
 
-if (existsSync(target)) {
+if (isLocal) {
   const files = await loadLocalDir(target);
   console.log(renderMarkdownReport(scanFiles(files, rows), { now, repoLabel: target }));
-} else if (/^[\w.-]+\/[\w.-]+$/.test(target)) {
-  const token = process.env.GITHUB_TOKEN;
-  if (token === undefined || token === "") {
-    console.error(`GITHUB_TOKEN is not set; it is required to fetch ${target} from GitHub.`);
-    process.exit(1);
-  }
+} else {
   const res = await fetch(`https://api.github.com/repos/${target}/tarball`, {
     headers: { authorization: `Bearer ${token}`, "user-agent": "aidep-scan" },
   });
@@ -70,7 +96,4 @@ if (existsSync(target)) {
   result.filesSkipped += untar.skippedLarge;
   result.truncated = untar.truncated;
   console.log(renderMarkdownReport(result, { now, repoLabel: target }));
-} else {
-  console.error(`"${target}" is neither an existing directory nor an owner/repo slug.`);
-  process.exit(1);
 }
