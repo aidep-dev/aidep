@@ -45,5 +45,5 @@ where s.repo_id = (select id from repos where owner = 'ricardodreyes' and name =
 - gpt-4o-transcribe has no announced replacement, so it cannot open a migration PR; `features/migration-pr.md` uses a different probe model.
 - Wait for each refresh to come back before the next push. A push that lands while a scan for the repo is queued or running is dropped, unless it touches `.github/aidep.json`.
 - A refresh scans main too, with no sha, so each refresh adds a scan row with `head_sha` null.
-- The found section also lists `aidep/fetch-and-inline.mjs` (open bug 1) and `app/assistant.py` line 6, the site the Assistants migration left for its checklist. Neither belongs to the probe.
+- The found section also lists `app/assistant.py` line 6, the site the Assistants migration left for its checklist. It does not belong to the probe.
 - The probe commits are authored by whoever `gh` is signed in as.

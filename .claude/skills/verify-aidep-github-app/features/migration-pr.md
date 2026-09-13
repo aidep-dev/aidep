@@ -40,5 +40,4 @@ Preconditions:
 
 - Merging the probe's PR instead of closing it leaves `gpt-5.6-sol` on main and the probe-remove step still cleans it up, but the finding resolves through the rescan rather than the close handler, which is a different path than the recipe proves.
 - A retiring model with no announced replacement (gpt-4o-transcribe, the rescan probe) gets no PR: the builder returns no files and the job logs "nothing auto-migrated". The button still queues it. Use gpt-4-turbo for this recipe while it lives; after 2026-10-23 pick another swappable model from the registry.
-- The canary's Assistants event is stuck on bug 2 in the README, so its button shows "PR #2 open" and cannot be pressed until that finding is released.
 - A second press for the same event while its PR is open finds the existing PR (the job answers 422 and refreshes its body) rather than opening another.
