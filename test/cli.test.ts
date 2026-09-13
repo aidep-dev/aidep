@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
@@ -39,6 +40,21 @@ describe("aidep cli arguments", () => {
     const r = run("acme/bot");
     expect(r.status).toBe(1);
     expect(r.stderr).toContain("GITHUB_TOKEN is not set");
+  });
+
+  it("--version prints the CLI package's version from the source tree and from the built dist", () => {
+    const expected = JSON.parse(readFileSync(fileURLToPath(new URL("../cli/package.json", import.meta.url)), "utf8")).version;
+    expect(expected).toMatch(/^\d+\.\d+\.\d+$/);
+    for (const flag of ["--version", "-v"]) {
+      const r = run(flag);
+      expect(r.status, flag).toBe(0);
+      expect(r.stdout.trim(), flag).toBe(expected);
+    }
+    const dist = fileURLToPath(new URL("../cli/dist/cli/scan.js", import.meta.url));
+    if (existsSync(dist)) {
+      const r = spawnSync(process.execPath, [dist, "--version"], { encoding: "utf8" });
+      expect(r.stdout.trim(), "dist").toBe(expected);
+    }
   });
 
   it("no argument prints usage on stderr and exits 1", () => {
