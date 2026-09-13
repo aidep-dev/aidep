@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
 import { loadRegistry } from "../src/registry.ts";
 import { loadLocalDir } from "../src/scanner/local.ts";
@@ -10,6 +12,22 @@ import { MAX_TARBALL_BYTES, untarToFiles } from "../src/scanner/tarball.ts";
 const USAGE = "usage: aidep <local-dir | owner/repo>";
 // owner/repo, where neither part starts with a dot, so ./src and ../x read as paths
 const SLUG = /^[A-Za-z0-9][\w-]*\/[A-Za-z0-9._-]+$/;
+
+// The nearest package.json that is this CLI's: cli/package.json from the
+// source tree, and the same file three levels up from the published dist.
+function version(): string {
+  let dir = dirname(fileURLToPath(import.meta.url));
+  for (let up = 0; up < 4; up++) {
+    try {
+      const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as { name?: string; version?: string; bin?: unknown };
+      if (pkg.name === "aidep" && pkg.bin !== undefined && typeof pkg.version === "string") return pkg.version;
+    } catch {
+      // no package.json at this level
+    }
+    dir = dirname(dir);
+  }
+  return "unknown";
+}
 
 const target = process.argv[2];
 if (target === undefined || target === "") {
@@ -24,8 +42,13 @@ if (target === "-h" || target === "--help") {
       "Scans a directory for calls to retired or deprecated OpenAI, Anthropic and Google",
       "models and APIs and prints a markdown report. Nothing leaves your machine.",
       "With GITHUB_TOKEN set, owner/repo scans a GitHub repo by tarball instead.",
+      "aidep --version prints the version.",
     ].join("\n"),
   );
+  process.exit(0);
+}
+if (target === "-v" || target === "--version") {
+  console.log(version());
   process.exit(0);
 }
 const isLocal = existsSync(target);
