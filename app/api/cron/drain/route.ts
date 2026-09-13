@@ -120,7 +120,7 @@ export async function GET(req: Request): Promise<Response> {
   const r = await drain(runJob, { max: 25 });
 
   // After the scans above have written their findings: the push channel.
-  // Idempotent, so running it every ten minutes costs one query when there
+  // Idempotent, so running it every half hour costs one query when there
   // is nothing new. A mail failure must not fail the drain.
   let mailed = { exposure: 0, waitlist: 0, confirmations: 0 };
   try {

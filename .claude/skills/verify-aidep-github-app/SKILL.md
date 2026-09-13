@@ -65,7 +65,7 @@ Proof standards. Drive the real trigger: a commit on main, the checkbox, the das
 
 ## Gotchas
 
-- A webhook starts the job queue as it answers, so onboarding PRs, migration PRs, and rescans land within seconds. Anything that misses that waits for the 10-minute cron drain, and mail only ever goes out on the cron.
+- A webhook starts the job queue as it answers, so onboarding PRs, migration PRs, and rescans land within seconds. Anything that misses that waits for the cron drain, every 30 minutes, and mail only ever goes out on the cron.
 - A push to main that arrives while a scan for the repo is queued or running is dropped, unless it touches `.github/aidep.json`. Let a refresh come back before the next push.
 - GitHub asks the account owner to re-authenticate before it shows the App's settings pages; that step is theirs.
 - The App has two installations sending webhooks to the same production: the aidep-dev org, for the product repo, and ricardodreyes, for the canary.
