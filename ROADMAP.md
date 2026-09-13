@@ -1,7 +1,7 @@
 # Roadmap
 
 Public because it should be. If you want to know what we're doing and why, this is it.
-Last updated 2026-08-21.
+Last updated 2026-09-13.
 
 ## The goal
 
@@ -15,34 +15,38 @@ One paying org is the whole revenue goal, and it is not modesty. Fixed hosting i
 month. One aidep Proof subscription at $39 covers most of it. Past that we are default alive and
 can keep the rest free forever without it being a favour anyone can withdraw.
 
-100 repos is the number that is actually hard. Today it is 0.
+100 repos is the number that is actually hard. Today it is two, and both are ours.
 
 ## Where we are, stated plainly
 
-Zero customers. One install, and it is ours. No billing: the paid flag is a column nobody can flip
-from outside.
+Zero customers, and nobody outside has installed anything. Two installs, both ours: this repo, and
+a canary repo that a weekly check drives through install, onboarding, rescans and migration PRs.
+No billing: the paid flag is a column nobody can flip from outside.
 
-What does exist, as of 2026-08-21: `aidep.dev` is live on Vercel with Postgres on Neon. The
-GitHub App `aidep-dev` is registered under the organization with exactly three permissions, and
-its first install opened the onboarding PR on this repo. The registry is public, CC0, and served
-at `/api/registry` for anyone's agent. `npx aidep .` scans a directory with no account. 199 dated
-and sourced deprecation rows across OpenAI, Anthropic and Google; a scanner; transforms; migration
-PR generation; an eval pack; 220 passing tests.
+What does exist, as of 2026-09-13: `aidep.dev` is live on Vercel with Postgres on Neon. Both
+repos are public, MIT on the code and CC0 on the data. The GitHub App `aidep-dev` is public, holds
+exactly three permissions, and has run the whole path on a real repo. `npx aidep .` is on npm and
+scans a directory with no account. 205 dated and sourced deprecation rows across OpenAI, Anthropic
+and Google, served at `/api/registry` and `llms.txt` for anyone's agent, kept current by a daily
+poller that merges its own additive updates. A scanner, transforms, migration PR generation, an
+eval pack, over 300 passing tests, a daily probe of the production keys, and a weekly canary run
+that commits a probe to a real repo and reads the scan back.
 
 Ten hand-written issues in August. Two moved strangers' repos within 48 hours; one came back
 "not useful in this case, the docs auto-update", which is its own data point, logged in
-docs/discovery.md. Nobody else has installed anything and nobody has asked what it costs.
+docs/discovery.md. In September a stranger added a +1 to one of them with the wall they had hit.
+Nobody has installed anything and nobody has asked what it costs.
 
 ## What we give away and what we sell
 
-**The registry is a public good and it is the point.** 199 rows, every one carrying the vendor URL
+**The registry is a public good and it is the point.** 205 rows, every one carrying the vendor URL
 it came from and the date it was checked. Anyone can read it, fork it, cite it, or point their own
 agent at it. It is CC0. If OpenAI ships it themselves tomorrow, that is a good outcome for
 everyone and we still have the watch.
 
 We open source the registry because it is the one thing here a language model cannot derive.
 Training cutoffs come before deprecations, by construction. Ask an agent to migrate you off a dead
-model and it picks a replacement from what it learned months ago. Of our 174 rows that name a
+model and it picks a replacement from what it learned months ago. Of our 176 rows that name a
 replacement, **29 name a replacement that is itself already deprecated or retired**. One in six.
 `ada` points at `babbage-002`, which dies 2026-09-28. `curie` points at `davinci-002`, same day.
 Replacement chains rot, and an agent will say "done" either way.
@@ -78,7 +82,9 @@ Yes, use your AI. We tell you when, and we tell it what is actually true today.
 
 **Now to 2026-08-25.** Gate: a stranger can run aidep without asking permission.
 
-Done 2026-08-21. Every item below shipped; the list stays so the reasoning does.
+Done. The org, the App and the deploy on 2026-08-21, the registry public on 2026-08-25, this repo
+public and `npx aidep` on npm on 2026-09-08, the App public on 2026-09-10. Every item below
+shipped; the list stays so the reasoning does.
 
 Nothing on this list is a feature. The product is finished and invisible, and that is the entire
 problem.
@@ -93,7 +99,7 @@ problem.
 - Ship `npx aidep <dir>`. The local scanner already works against a directory with no token, no
   account and no write access to anything. It is the version of this product that asks for zero
   trust, and it is already written.
-- Deploy the app. Vercel Pro at $20, Supabase Free for Postgres, `aidep.dev` pointed at it from
+- Deploy the app. Vercel Pro at $20, Neon for Postgres, `aidep.dev` pointed at it from
   Cloudflare.
 - Register the GitHub App. Three permissions, metadata read, contents read/write, pull requests
   read/write. Tunnel first so the first real webhook delivery lands somewhere debuggable.
@@ -106,9 +112,11 @@ problem.
 The OpenAI Assistants API shuts down on 2026-08-26. On 2026-08-18 there were 16,320 public files
 calling `client.beta.threads` and 12,448 calling `client.beta.assistants`.
 
-Recount the same queries on the 26th, 27th and 28th. Save the numbers with the method. Then sit on
-them. `tools/recount.ts` does the count and `.github/workflows/recount.yml` runs it on those three
-days and commits the result to `evidence/recount/`, next to the 08-18 baseline.
+The plan was three counts, on the 26th, 27th and 28th. The token behind the workflow died on the
+first two days, so one count survived, taken on 2026-08-28: 16,448 public files calling
+`client.beta.threads` and 12,384 calling `client.beta.assistants`. Two days after the shutdown,
+public exposure had not fallen. The number sits in `evidence/recount/` next to the 08-18 baseline,
+with its method, and `tools/recount.ts` takes another whenever it is dispatched.
 
 Six days is not a sales cycle and the people who were going to migrate already have. What this
 week produces is the one piece of evidence nobody who has not built the registry can publish:
@@ -118,6 +126,9 @@ That is the October post's opening paragraph, written in August.
 ## Phase 2: publish the ground truth
 
 **September.** Gate: someone who is not the author cites the registry or files a row against it.
+
+Shipped so far: `/api/registry` and `llms.txt`, the handbook, and the register at `/dead` with
+its lookup. The gate is not met; nobody outside has cited the registry or filed a row.
 
 - A JSON endpoint and an `llms.txt` so other people's agents can consume the registry directly.
   Every agent that reads it is a distribution channel we did not have to sell to.
@@ -155,16 +166,21 @@ Every date below is in the registry with the vendor URL it came from.
 
 | Date | What dies | Rows |
 |---|---|---|
-| 2026-08-26 | Assistants API | 1 |
 | 2026-09-24 | Videos API, Sora 2 | 6 |
 | 2026-09-28 | `babbage-002`, `davinci-002`, GPT-3.5 variants | 4 |
+| 2026-09-30 | `gemini-omni-flash-preview` | 1 |
+| 2026-10-01 | `gpt-5.4-cyber` | 1 |
 | 2026-10-02 | `gemini-2.5-flash-image` | 1 |
 | 2026-10-23 | `gpt-4-turbo`, `gpt-4o-2024-05-13`, fine-tuned variants | 16 |
 | 2026-11-30 | `/v1/prompts`, Agent Builder, Evals | 3 |
-| 2026-12-11 | `gpt-5-2025-08-07`, `o3-2025-04-16` | 6 |
+| 2026-12-01 | `gpt-image-1.5`, `gpt-image-1-mini`, `chatgpt-image-latest` | 3 |
+| 2026-12-11 | `gpt-5-2025-08-07` and the gpt-5 mini, nano and pro dates | 6 |
+| 2027-01-06 | fine-tuning | 1 |
 | 2027-01-20 | GPT-4o audio and realtime | 9 |
+| 2027-02-26 | `whisper-1`, `gpt-4o-transcribe` | 4 |
 
-53 more rows die after today. We did not have to invent a reason for anyone to care.
+57 rows die on or after today, 2026-09-13. The Assistants API went on 2026-08-26 and stayed in
+16,448 public files two days later. We did not have to invent a reason for anyone to care.
 
 ---
 
