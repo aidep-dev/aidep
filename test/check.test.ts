@@ -67,13 +67,30 @@ describe("key check route", () => {
       vi.fn(async (url: string) =>
         url.startsWith("https://api.anthropic.com")
           ? Response.json({ content: [{ type: "text", text: "ok" }] })
-          : Response.json({ total_count: 16512 }),
+          : url.startsWith("https://api.resend.com")
+            ? Response.json({ data: [{ name: "aidep.dev", status: "verified" }] })
+            : Response.json({ total_count: 16512 }),
       ),
     );
     expect(await (await get("Bearer cron-secret-40")).json()).toEqual({
       anthropic: { ok: true, detail: "ok" },
       search: { ok: true, detail: "16512 files match" },
-      mail: { ok: true, detail: "RESEND_API_KEY and MAIL_FROM set" },
+      mail: { ok: true, detail: "aidep.dev verified at Resend" },
     });
+  });
+
+  it("mail is red when the sender's domain is missing from Resend or not verified, even with both variables set", async () => {
+    process.env.RESEND_API_KEY = "re_good";
+    process.env.MAIL_FROM = "aidep <watch@aidep.com>";
+    const domains = vi.fn(async () => Response.json({ data: [{ name: "aidep.dev", status: "verified" }] }));
+    vi.stubGlobal("fetch", domains);
+    let body = await (await get("Bearer cron-secret-40")).json();
+    expect(body.mail).toEqual({ ok: false, error: "aidep.com is not a domain in the Resend account" });
+    expect(domains).toHaveBeenCalledWith("https://api.resend.com/domains", expect.objectContaining({ headers: { authorization: "Bearer re_good" } }));
+
+    process.env.MAIL_FROM = "aidep <watch@aidep.dev>";
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ data: [{ name: "aidep.dev", status: "pending" }] })));
+    body = await (await get("Bearer cron-secret-40")).json();
+    expect(body.mail).toEqual({ ok: false, error: "aidep.dev is pending at Resend, not verified" });
   });
 });

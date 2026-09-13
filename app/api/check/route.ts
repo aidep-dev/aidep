@@ -3,13 +3,13 @@ import { anthropicLlm } from "../../../src/evalgen/extract.ts";
 import { mailConfigured } from "../../../src/notify.ts";
 
 /**
- * Proves the two write-only keys work from inside the deployment, where
- * they can be read. Vercel marks them Sensitive, so `vercel env pull` returns
- * them blank and nothing outside the app can tell a bad key from a good one:
- * a dead ANTHROPIC_API_KEY silently skips every eval pack, and a dead
- * GITHUB_SEARCH_TOKEN leaves /dead frozen at its last count. Mail is a
- * config check only: with RESEND_API_KEY or MAIL_FROM unset every sender
- * returns zeros without a log line.
+ * Proves the write-only keys work from inside the deployment, where they can
+ * be read. Vercel marks them Sensitive, so `vercel env pull` returns them
+ * blank and nothing outside the app can tell a bad key from a good one: a
+ * dead ANTHROPIC_API_KEY silently skips every eval pack, a dead
+ * GITHUB_SEARCH_TOKEN leaves /dead frozen at its last count, and a MAIL_FROM
+ * on a domain Resend has not verified fails every send with a 403 while the
+ * variables look fine. The mail probe asks Resend about the sender's domain.
  *
  *   curl -H "authorization: Bearer $CRON_SECRET" https://aidep.dev/api/check
  */
@@ -40,10 +40,24 @@ async function probeSearch(): Promise<Probe> {
   return { ok: true, detail: `${data.total_count} files match` };
 }
 
-function probeMail(): Probe {
-  return mailConfigured()
-    ? { ok: true, detail: "RESEND_API_KEY and MAIL_FROM set" }
-    : { ok: false, error: "RESEND_API_KEY or MAIL_FROM is not set" };
+async function probeMail(): Promise<Probe> {
+  if (!mailConfigured()) return { ok: false, error: "RESEND_API_KEY or MAIL_FROM is not set" };
+  const domain = /@([^>\s]+)/.exec(process.env.MAIL_FROM ?? "")?.[1];
+  if (!domain) return { ok: false, error: "MAIL_FROM carries no address" };
+  let res: Response;
+  try {
+    res = await fetch("https://api.resend.com/domains", {
+      headers: { authorization: `Bearer ${process.env.RESEND_API_KEY}` },
+    });
+  } catch (e) {
+    return { ok: false, error: `resend unreachable: ${(e as Error).message.slice(0, 200)}` };
+  }
+  if (!res.ok) return { ok: false, error: `resend ${res.status}: ${(await res.text()).slice(0, 200)}` };
+  const data = (await res.json()) as { data?: Array<{ name?: string; status?: string }> };
+  const row = data.data?.find((d) => d.name === domain);
+  if (!row) return { ok: false, error: `${domain} is not a domain in the Resend account` };
+  if (row.status !== "verified") return { ok: false, error: `${domain} is ${row.status ?? "unknown"} at Resend, not verified` };
+  return { ok: true, detail: `${domain} verified at Resend` };
 }
 
 export async function GET(req: Request): Promise<Response> {
@@ -51,6 +65,6 @@ export async function GET(req: Request): Promise<Response> {
   if (!secret || !bearerMatches(req.headers.get("authorization"), secret)) {
     return new Response("unauthorized", { status: 401 });
   }
-  const [anthropic, search] = await Promise.all([probeAnthropic(), probeSearch()]);
-  return Response.json({ anthropic, search, mail: probeMail() });
+  const [anthropic, search, mail] = await Promise.all([probeAnthropic(), probeSearch(), probeMail()]);
+  return Response.json({ anthropic, search, mail });
 }
