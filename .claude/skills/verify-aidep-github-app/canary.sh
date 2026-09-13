@@ -139,7 +139,7 @@ refresh)
     b=$(pr_body "$n")
     if [[ "$b" == *"$UNTICKED"* && ! "$(pr_updated "$n")" < "$ticked_at" ]]; then break; fi
     if [ "$SECONDS" -ge "$deadline" ]; then
-      echo "onboarding PR #$n was not re-rendered within ${wait_s}s; the 10-minute cron drain is the fallback, so check canary.sh found later" >&2
+      echo "onboarding PR #$n was not re-rendered within ${wait_s}s; the 30-minute cron drain is the fallback, so check canary.sh found later" >&2
       exit 1
     fi
   done

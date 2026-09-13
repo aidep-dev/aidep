@@ -27,7 +27,7 @@ Preconditions:
 
 - **Set the address.** Commit `.github/aidep.json` on main with `notify` set to the alias, changing no other key.
 - **Config re-read.** With the Neon MCP, `select config::text from repos where owner = 'ricardodreyes' and name = 'aidep-canary'` shows the alias within seconds.
-- **Confirmation.** Within 10 minutes the alias receives "Confirm your address for aidep", naming ricardodreyes/aidep-canary. The ledger (`select kind, subject_key, sent_at from notifications where recipient = '<alias>'`) shows `confirm` with subject key `repo:<repo id>`.
+- **Confirmation.** Within 30 minutes the alias receives "Confirm your address for aidep", naming ricardodreyes/aidep-canary. The ledger (`select kind, subject_key, sent_at from notifications where recipient = '<alias>'`) shows `confirm` with subject key `repo:<repo id>`.
 - **Confirm.** The owner opens the link and presses the button. The page answers "Confirmed. aidep will write to <alias> when a scan of ricardodreyes/aidep-canary finds a new exposure or a retirement is inside 30 days, and for nothing else." and `confirmed_addresses` holds the alias with scope `repo:<repo id>`.
 - **Digest.** The next drain mails the repo's open events, with the most urgent one in the subject, and the ledger gains one `exposure` row per event.
 - **Stop.** The owner presses the stop link in the digest. The page answers "Done. aidep will never mail <alias> again." and `suppressed_addresses` holds the alias.
@@ -35,7 +35,7 @@ Preconditions:
 
 ## Gotchas
 
-- Mail goes out only on the 10-minute cron drain, never inline with a push.
+- Mail goes out only on the cron drain, every 30 minutes, never inline with a push.
 - The ledger announces each event to an address once, plus the one reminder, so repeating the digest step needs an event that address has not heard about.
 - MAIL_FROM was `watch@aidep.com`, a parked domain Resend never verified, until 2026-09-10. The health probe only checks that the variable is set, so it read green while every send would have failed.
 - aidep.dev has no DMARC record; look in spam as well.
