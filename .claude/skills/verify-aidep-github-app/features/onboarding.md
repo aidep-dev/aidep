@@ -34,4 +34,4 @@ Preconditions:
 - "All repositories" on the install screen opens a Configure aidep PR on every repo the account owns, empty ones too, because onboarding runs per repo whatever the scan finds.
 - The installation webhook carries no default branch, so the repo row says `main` until the first scan reads the real one.
 - The refresh box works on the merged PR too, and rewrites it with the pre-merge wording ("Merge this PR to activate aidep"). On the canary that is intended: it is how the map reads a scan without the database.
-- The repo page shows "Create migration PR" before onboarding (open bug 4 in the README); assert on the API's refusal.
+- Before onboarding the repo page shows the API's refusal sentence where the button would be, and a direct POST gets the same sentence with a 409.
