@@ -201,7 +201,7 @@ describe("create_migration_pr", () => {
     expect(prPost.params).toMatchObject({
       head: "aidep/openai-endpoint-assistants-api",
       base: "main",
-      title: "Migrate 2 OpenAI Assistants API calls before the Aug 26 shutdown",
+      title: "Migrate 2 OpenAI Assistants API calls before the Aug 26, 2026 shutdown",
     });
     const body = prPost.params.body as string;
     // assistants eval pack compares the same model via chat vs the Responses
@@ -536,6 +536,21 @@ describe("buildMigrationPr", () => {
     generatedFiles: [{ path: "aidep/tool.mjs", content: "// tool\n" }],
   };
   const cannedPack = [{ path: "evals/tests.json", content: "[]\n" }];
+
+  it("names the Assistants shutdown from the event, and says retired once the registry does", () => {
+    const assistants = MINI_REGISTRY.find((r) => r.id === "openai:endpoint:assistants-api")!;
+    const oneDance: EventTransformResult = {
+      files: [{ path: "app/assistant.py", migrated: "x", applied: [{ kind: "dance", description: "rewrote the dance" }], checklist: [], swaps: [] }],
+      eventChecklist: [],
+      generatedFiles: [],
+    };
+    const before = buildMigrationPr({ repo, event: assistants, result: oneDance, evalPack: null, evalSkipReason: null, now: "2026-08-16" });
+    expect(before.title).toBe("Migrate 1 OpenAI Assistants API call before the Aug 26, 2026 shutdown");
+    expect(before.body).toContain("which shuts down 2026-08-26");
+    const after = buildMigrationPr({ repo, event: { ...assistants, status: "retired" }, result: oneDance, evalPack: null, evalSkipReason: null, now: "2026-09-13" });
+    expect(after.title).toBe("Move 1 OpenAI Assistants API call off the retired Assistants API");
+    expect(after.body).toContain("which was retired on 2026-08-26 (calls fail today)");
+  });
 
   it("builds the retired-model title, branch, files, and a pending eval block", () => {
     const built = buildMigrationPr({

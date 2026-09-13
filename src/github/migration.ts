@@ -128,7 +128,11 @@ function branchFor(event: RegistryRow): string {
 function titleFor(event: RegistryRow, result: EventTransformResult): string {
   if (event.id === ASSISTANTS_EVENT_ID) {
     const n = result.files.filter((f) => f.applied.length > 0).length;
-    return `Migrate ${n} OpenAI Assistants API calls before the Aug 26 shutdown`;
+    const calls = `${n} OpenAI Assistants API ${n === 1 ? "call" : "calls"}`;
+    if (event.status === "retired") return `Move ${calls} off the retired Assistants API`;
+    return event.dies === null
+      ? `Migrate ${calls} before the Assistants API shutdown`
+      : `Migrate ${calls} before the ${humanDate(event.dies)} shutdown`;
   }
   if (event.surface === "param") return "Drop deprecated sampling params for Claude 4.7+";
   const old = event.api_ids[0];
@@ -146,7 +150,11 @@ function summaryFor(event: RegistryRow, result: EventTransformResult): string {
   const n = result.files.filter((f) => f.migrated !== null).length;
   const files = `${n} ${n === 1 ? "file" : "files"}`;
   if (event.id === ASSISTANTS_EVENT_ID) {
-    return `This PR moves ${files} off the OpenAI Assistants API, which shuts down ${event.dies ?? "2026-08-26"}, onto the Responses API (synchronous; no run polling; the text is on response.output_text).`;
+    const when =
+      event.status === "retired"
+        ? `which was retired on ${event.dies ?? "2026-08-26"} (calls fail today)`
+        : `which shuts down ${event.dies ?? "2026-08-26"}`;
+    return `This PR moves ${files} off the OpenAI Assistants API, ${when}, onto the Responses API (synchronous; no run polling; the text is on response.output_text).`;
   }
   if (event.surface === "param") {
     return `This PR removes non-default temperature/top_p/top_k arguments in ${files}; they return 400 on Claude Opus 4.7+ and newer models.`;
