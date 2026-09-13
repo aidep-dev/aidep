@@ -147,6 +147,13 @@ export function registerHandlers(app: App): void {
       if (payload.pull_request.merged) {
         // the one number that says the product delivered; read by /api/funnel
         await sql`update prs set merged_at = now() where id = ${pr.id} and merged_at is null`;
+        // The rescan the merge commit triggers resolves the sites the PR
+        // rewrote. The sites it left for the checklist would otherwise stay
+        // pinned to a merged PR: counted by prCap, shown as an open PR on the
+        // dashboard, and unrequestable. Either order with that rescan converges.
+        await sql`
+          update findings set status = 'open', pr_id = null
+          where repo_id = ${payload.repository.id} and pr_id = ${pr.id} and status = 'pr_open'`;
         return;
       }
       await sql`

@@ -4,8 +4,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { AidepConfigSchema, DEFAULT_CONFIG } from "../src/config.ts";
 import {
   createPrRecord,
+  createScan,
   getRepo,
   markOnboarded,
+  recordFindings,
   setInstallationSuspended,
   setOnboardingPr,
   setRepoConfig,
@@ -344,7 +346,7 @@ describe("pull_request.closed/reopened (migration PR)", () => {
     expect(f.pr_id).toBeNull();
   });
 
-  it("merged migration PR stamps merged_at and leaves its findings to the next scan", async () => {
+  it("merged migration PR stamps merged_at and hands its findings back to the rescan", async () => {
     await seedRepo(REPO_A, { onboarded: true });
     const prId = await createPrRecord({
       repoId: REPO_A,
@@ -364,9 +366,69 @@ describe("pull_request.closed/reopened (migration PR)", () => {
 
     const [pr] = await sql`select merged_at from prs where id = ${prId}`;
     expect(pr.merged_at).not.toBeNull();
-    // the rescan after merge resolves them; the handler does not guess
-    const [f] = await sql`select status from findings where repo_id = ${REPO_A}`;
-    expect(f.status).toBe("pr_open");
+    const [f] = await sql`select status, pr_id from findings where repo_id = ${REPO_A}`;
+    expect(f.status).toBe("open");
+    expect(f.pr_id).toBeNull();
+  });
+
+  it("after a merge, the rescan resolves what the PR fixed and the checklist leftover stays open, in either order", async () => {
+    const merged = (number: number) =>
+      receive("pull_request", {
+        action: "closed",
+        number,
+        installation: inst(INST),
+        repository: { id: REPO_A },
+        pull_request: { number, merged: true, body: "", head: { ref: "aidep/openai-endpoint-assistants-api" } },
+      });
+    const seedBoth = async (prId: number) => {
+      for (const path of ["src/fixed.py", "src/leftover.py"]) {
+        await sql`
+          insert into findings (repo_id, registry_id, surface, path, line, matched, status, pr_id)
+          values (${REPO_A}, 'openai:endpoint:assistants-api', 'endpoint', ${path}, 1, '.beta.threads', 'pr_open', ${prId})`;
+      }
+    };
+    const rescanSeesOnlyLeftover = async () => {
+      const scanId = await createScan(REPO_A, "abc123");
+      await recordFindings(REPO_A, scanId, [
+        {
+          registryId: "openai:endpoint:assistants-api",
+          provider: "openai",
+          surface: "endpoint",
+          status: "retired",
+          path: "src/leftover.py",
+          line: 1,
+          matched: ".beta.threads",
+          replacementId: null,
+          dies: "2026-08-26",
+          diesIsEarliestPossible: false,
+          migrationUrl: null,
+        },
+      ]);
+    };
+    const statuses = async () =>
+      Object.fromEntries(
+        (await sql<{ path: string; status: string }[]>`select path, status from findings where repo_id = ${REPO_A}`).map(
+          (r) => [r.path, r.status],
+        ),
+      );
+
+    await seedRepo(REPO_A, { onboarded: true });
+    const first = Number(
+      await createPrRecord({ repoId: REPO_A, number: 31, deprecationEvent: "openai:endpoint:assistants-api", branch: "aidep/openai-endpoint-assistants-api" }),
+    );
+    await seedBoth(first);
+    await merged(31);
+    await rescanSeesOnlyLeftover();
+    expect(await statuses()).toEqual({ "src/fixed.py": "resolved", "src/leftover.py": "open" });
+
+    await sql`delete from findings where repo_id = ${REPO_A}`;
+    const second = Number(
+      await createPrRecord({ repoId: REPO_A, number: 32, deprecationEvent: "openai:endpoint:assistants-api", branch: "aidep/openai-endpoint-assistants-api" }),
+    );
+    await seedBoth(second);
+    await rescanSeesOnlyLeftover();
+    await merged(32);
+    expect(await statuses()).toEqual({ "src/fixed.py": "resolved", "src/leftover.py": "open" });
   });
 
   it("reopened migration PR restores its findings to pr_open", async () => {

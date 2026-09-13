@@ -176,8 +176,12 @@ export default async function RepoPage({
                   >
                     PR #{g.pr.number} open · eval: {g.pr.evalStatus}
                   </a>
-                ) : (
+                ) : cfg ? (
                   <CreatePrButton repoId={Number(row.id)} registryId={g.registryId} />
+                ) : (
+                  <span className="text-sm text-ink-secondary">
+                    Merge the onboarding PR first; aidep opens nothing else until then.
+                  </span>
                 )}
               </div>
             </section>
