@@ -1006,17 +1006,31 @@ export function transformAssistants(
   // create in the same file (the bare responses.create fails until then)
   const anyCreate = files.some((f) => /\.beta\.assistants\.create\(/.test(f.content));
   const envRef = files.some((f) => ASST_LITERAL.test(f.content) || ASSISTANT_ENV.test(f.content));
+  // Both helper scripts read the Assistants API. Once the registry says it is
+  // retired they cannot answer, and shipping them would hand the customer a
+  // dead tool plus new findings against it on the next scan.
+  const retired = event.status === "retired";
+  const dies = event.dies ?? "2026-08-26";
   if (anyBareDance || (!anyCreate && (envRef || anyDance))) {
     eventChecklist.push({
       id: "assistants-fetch-and-inline",
-      text: `The Assistant's config (model/instructions/tools) is not in this code, so rewritten responses.create calls have no model yet and will fail until it is inlined. The Assistants API dies ${event.dies ?? "2026-08-26"} and the config must move into the code; aidep inlines configs and never points calls at hosted prompt objects (prompt creation is dashboard-only and /v1/prompts itself dies 2026-11-30). Run aidep/fetch-and-inline.mjs (generated in this PR) with OPENAI_API_KEY and the assistant id, then merge the printed model/instructions/tools into the new responses.create call(s).`,
+      text: retired
+        ? `The Assistant's config (model/instructions/tools) is not in this code, so rewritten responses.create calls have no model yet and will fail until it is inlined. The Assistants API was retired on ${dies}, so the config can no longer be fetched from OpenAI; copy the model, instructions and tools from your own records into the new responses.create call(s). aidep inlines configs and never points calls at hosted prompt objects (prompt creation is dashboard-only and /v1/prompts itself dies 2026-11-30).`
+        : `The Assistant's config (model/instructions/tools) is not in this code, so rewritten responses.create calls have no model yet and will fail until it is inlined. The Assistants API dies ${dies} and the config must move into the code; aidep inlines configs and never points calls at hosted prompt objects (prompt creation is dashboard-only and /v1/prompts itself dies 2026-11-30). Run aidep/fetch-and-inline.mjs (generated in this PR) with OPENAI_API_KEY and the assistant id, then merge the printed model/instructions/tools into the new responses.create call(s).`,
     });
-    generatedFiles.push({ path: "aidep/fetch-and-inline.mjs", content: FETCH_AND_INLINE_MJS });
+    if (!retired) generatedFiles.push({ path: "aidep/fetch-and-inline.mjs", content: FETCH_AND_INLINE_MJS });
   }
 
   // (e) always-checklist patterns
   for (const rule of ALWAYS_RULES) {
     if (!files.some((f) => rule.re.test(f.content))) continue;
+    if (rule.backfill === true && retired) {
+      eventChecklist.push({
+        id: rule.id,
+        text: `Stored threads could be backfilled into Conversations while the Assistants API still answered; it was retired on ${dies}, so their history is no longer readable through it. Anything you still need from old threads has to come from your own logs.`,
+      });
+      continue;
+    }
     eventChecklist.push({ id: rule.id, text: rule.text });
     if (rule.backfill === true) {
       generatedFiles.push({ path: "aidep/backfill-threads.mjs", content: BACKFILL_THREADS_MJS });

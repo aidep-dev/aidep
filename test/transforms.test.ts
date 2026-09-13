@@ -664,6 +664,18 @@ describe("assistants id literals use the scanner's floor", () => {
     expect(r2.eventChecklist.map((c) => c.id)).toContain("assistants-fetch-and-inline");
   });
 
+  it("after the sunset, neither helper script ships and the checklist says where the config and threads have to come from", () => {
+    const retired = { ...ASSISTANTS_ROW, status: "retired" as const };
+    const real = 'const t = "thread_9kQvXcR2mNbF7yT1wZ8pL3dJ";\nconst a = "asst_9kQvXcR2mNbF7yT1wZ8pL3dJ";\n';
+    const r = transformForEvent(retired, [{ path: "src/a.js", content: real }], ALL_ROWS);
+    expect(r.generatedFiles).toEqual([]);
+    const byId = Object.fromEntries(r.eventChecklist.map((c) => [c.id, c.text]));
+    expect(byId["assistants-fetch-and-inline"]).toContain("retired on 2026-08-26");
+    expect(byId["assistants-fetch-and-inline"]).not.toContain("fetch-and-inline.mjs");
+    expect(byId["assistants-thread-backfill"]).toContain("retired on 2026-08-26");
+    expect(byId["assistants-thread-backfill"]).not.toContain("backfill-threads.mjs");
+  });
+
   it("a 1 MB line of uppercase or underscores is checked in bounded time", () => {
     for (const text of ["A".repeat(1024 * 1024), "_".repeat(1024 * 1024)]) {
       const t = performance.now();
