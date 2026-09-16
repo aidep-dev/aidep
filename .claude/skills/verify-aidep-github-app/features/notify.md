@@ -17,7 +17,7 @@ A repo's `.github/aidep.json` can name addresses in `notify`. Each address gets 
 
 ## Driving it with verify-aidep-github-app
 
-Not driven yet. These steps are read from `src/notify.ts` and the confirm and stop routes; the first run that drives them replaces this paragraph with its date and evidence.
+Driven 2026-09-13 to 14 on the canary with the owner's plus alias: the config push at 22:26Z was re-read within a minute, the confirmation went out on the 22:30Z cron tick (ledger `confirm repo:1363139886` at 22:32:47Z), the owner pressed the button at 04:40Z (row in `confirmed_addresses`, scope `repo:1363139886`), and the digest went out on the next tick at 05:00:45Z (ledger `exposure 1363139886:openai:endpoint:assistants-api`, plus its `:t30` key in the same send because the event was already inside the window). The mail bodies were read by the owner in the alias inbox, not by the run. Stop was left unpressed on purpose; the local `verify-aidep` map drives that route.
 
 Preconditions:
 
